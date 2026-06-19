@@ -1,0 +1,31 @@
+{
+  "render": "request-board",
+  "title": "SSV MIDWAY SR-2 // REQUISITIONS",
+  "tag": "SASO",
+  "prompt": "SUPPLY & MATERIAL REQUESTS",
+  "sections": [
+    { "name": "OPEN REQUESTS", "statuses": ["open"] },
+    { "name": "FULFILLED", "statuses": ["fulfilled"], "dim": true },
+    { "name": "DENIED", "statuses": ["denied"], "dim": true }
+  ],
+  "requests": [
+    {
+      "id": "rq-001", "title": "Medical-grade Omni-gel, 4 units",
+      "from": "Lisa Voss", "fromId": "voss", "role": "Doctor",
+      "status": "open", "date": "28 Oct",
+      "body": "Standard med-bay synthesis can't keep up if we take casualties at the facility. I need proper medical-grade stock before we go in, not the industrial gel Engineering keeps handing me."
+    },
+    {
+      "id": "rq-002", "title": "Calibration tools for drive harmonics",
+      "from": "James Markov", "fromId": "markov", "role": "Drive Engineer",
+      "status": "fulfilled", "date": "22 Oct",
+      "body": "The drive's running rough and I'm doing it by ear. A proper calibration kit would save us a bad jump someday."
+    },
+    {
+      "id": "rq-003", "title": "Cobra missile launcher",
+      "from": "Juliso Ennidos", "fromId": "ennidos-j", "role": "Squad Member",
+      "status": "denied", "date": "26 Oct",
+      "body": "One Cobra. Maybe two. For situations that need a wall to stop existing. I have a list of such situations. Will provide on request."
+    }
+  ]
+}

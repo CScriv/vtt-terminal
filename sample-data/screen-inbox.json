@@ -1,0 +1,35 @@
+{
+  "render": "inbox",
+  "title": "SSV MIDWAY SR-2 // INBOX",
+  "tag": "SASO",
+  "prompt": "SECURE MESSAGING",
+  "messages": [
+    {
+      "id": "msg-001",
+      "from": "byas",
+      "to": ["matthews"],
+      "subject": "Welcome aboard",
+      "time": "26 Oct — 0900",
+      "body": "Your quarters are assigned and your terminal access is live. See me if anything's amiss.",
+      "read": []
+    },
+    {
+      "id": "msg-002",
+      "from": "voss",
+      "to": ["Security"],
+      "subject": "Pre-mission medical check",
+      "time": "27 Oct — 1400",
+      "body": "All Security personnel report to med-bay for clearance before the next drop. No exceptions.",
+      "read": []
+    },
+    {
+      "id": "msg-003",
+      "from": "matthews",
+      "to": ["byas"],
+      "subject": "Re: Welcome aboard",
+      "time": "26 Oct — 0930",
+      "body": "Settled in. Thanks.",
+      "read": ["byas"]
+    }
+  ]
+}

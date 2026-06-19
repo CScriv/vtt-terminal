@@ -1,0 +1,71 @@
+{{!--
+  render/dossier.hbs — individual crew member detail.
+  `screen` is the member's full JSON object.
+
+  Proficiencies: array of objects { name, tag? }. (Use {"name":"X"} for
+  a plain one, {"name":"X","tag":"in training"} for a tagged one.)
+  Relationships: array of { label, display, target? }. target like
+  "crew/markov" makes the name a navigable link.
+--}}
+<div class="dossier-head">
+  <div class="dossier-name">{{screen.name}}</div>
+  <div class="dossier-role">{{screen.role}}{{#if screen.department}} — {{screen.department}}{{/if}}</div>
+  {{> terminalStatusFlag status=screen.status }}
+</div>
+
+<dl class="dossier">
+  {{#if screen.species}}<dt>Species</dt><dd>{{screen.species}}</dd>{{/if}}
+  {{#if screen.gender}}<dt>Gender</dt><dd>{{screen.gender}}</dd>{{/if}}
+  {{#if screen.department}}<dt>Department</dt><dd>{{screen.department}}</dd>{{/if}}
+  {{#if screen.dateOfHire}}<dt>Date of Hire</dt><dd>{{screen.dateOfHire}}</dd>{{/if}}
+</dl>
+
+{{#if screen.stationBonus}}
+  <div class="station-bonus">
+    <div class="station-bonus-label">▶ STATION BONUS</div>
+    <div class="station-bonus-value">
+      {{screen.stationBonus.label}}{{#if screen.stationBonus.system}} <span class="sb-sys">[System]</span>{{/if}}
+    </div>
+  </div>
+{{/if}}
+
+{{#if screen.background}}
+  <p class="acq-label">BACKGROUND</p>
+  <p>{{screen.background}}</p>
+{{/if}}
+
+{{#if screen.proficiencies.length}}
+  <div class="dossier-block">
+    <div class="dossier-block-label">PROFICIENCIES</div>
+    <ul class="acq-list">
+      {{#each screen.proficiencies}}
+        <li>{{this.name}}{{#if this.tag}} <span class="acq-tag">{{this.tag}}</span>{{/if}}</li>
+      {{/each}}
+    </ul>
+  </div>
+{{/if}}
+
+{{#if screen.relationships.length}}
+  <div class="dossier-block">
+    <div class="dossier-block-label">RELATIONSHIPS</div>
+    <dl class="rel-list">
+      {{#each screen.relationships}}
+        <dt>{{this.label}}</dt>
+        <dd>
+          {{#if this.target}}
+            <a class="nav-link" data-action="navigate" data-target="{{this.target}}">{{this.display}}</a>
+          {{else}}
+            {{this.display}}
+          {{/if}}
+        </dd>
+      {{/each}}
+    </dl>
+  </div>
+{{/if}}
+
+{{#if screen.notes.length}}
+  <p class="acq-label">NOTES</p>
+  <ul class="acq-list">
+    {{#each screen.notes}}<li>{{this}}</li>{{/each}}
+  </ul>
+{{/if}}

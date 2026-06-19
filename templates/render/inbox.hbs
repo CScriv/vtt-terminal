@@ -1,0 +1,67 @@
+{{!--
+  render/inbox.hbs — per-viewer inbox.
+  `inbox`: { isGM, hasBinding, inbox:[...], sent:[...], unreadCount, showSent }
+  Each message: { id, fromLabel, toLabels:[{id,label}], subject, time,
+  body, unread, screenId }. Clicking a message opens it (marks read).
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#unless inbox.hasBinding}}
+  <p class="inbox-empty">No mailbox is associated with your account. (Ask the GM to bind your character.)</p>
+{{/unless}}
+
+{{#if inbox.hasBinding}}
+  <details class="term-section" open>
+    <summary class="term-prompt">&gt; INBOX{{#if inbox.unreadCount}} <span class="inbox-unread-count">({{inbox.unreadCount}} unread)</span>{{/if}}</summary>
+    {{#if inbox.inbox.length}}
+      {{#each inbox.inbox}}
+        <details class="msg{{#if this.unread}} msg-unread{{/if}}" data-action="openMessage" data-message-id="{{this.id}}" data-screen-id="{{this.screenId}}">
+          <summary class="msg-head">
+            <span class="msg-from">{{this.fromLabel}}</span>
+            <span class="msg-subject">{{this.subject}}</span>
+            <span class="msg-time">{{this.time}}</span>
+          </summary>
+          <div class="msg-meta">
+            <span class="msg-to">To: {{#each this.toLabels}}{{this.label}}{{#unless @last}}, {{/unless}}{{/each}}</span>
+          </div>
+          <div class="msg-body"><p>{{this.body}}</p></div>
+          {{#if ../inbox.canCompose}}
+            <div class="msg-actions">
+              <a class="msg-reply-btn" data-action="composeMessage" data-screen-id="{{this.screenId}}" data-reply-to="{{this.from}}" data-reply-subject="{{this.replySubject}}">↩ Reply</a>
+            </div>
+          {{/if}}
+        </details>
+      {{/each}}
+    {{else}}
+      <p class="inbox-empty">— no messages —</p>
+    {{/if}}
+  </details>
+  <hr>
+
+  {{#if inbox.showSent}}
+    <details class="term-section">
+      <summary class="term-prompt">&gt; SENT</summary>
+      {{#if inbox.sent.length}}
+        {{#each inbox.sent}}
+          <details class="msg">
+            <summary class="msg-head">
+              <span class="msg-from">To: {{#each this.toLabels}}{{this.label}}{{#unless @last}}, {{/unless}}{{/each}}</span>
+              <span class="msg-subject">{{this.subject}}</span>
+              <span class="msg-time">{{this.time}}</span>
+            </summary>
+            <div class="msg-body"><p>{{this.body}}</p></div>
+          </details>
+        {{/each}}
+      {{else}}
+        <p class="inbox-empty">— nothing sent —</p>
+      {{/if}}
+    </details>
+    <hr>
+  {{/if}}
+
+  {{#if inbox.canCompose}}
+    <p class="term-prompt"><a data-action="composeMessage" data-screen-id="{{inbox.screenId}}">&gt; [ COMPOSE MESSAGE ]</a></p>
+  {{/if}}
+{{/if}}

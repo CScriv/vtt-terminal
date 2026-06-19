@@ -1,0 +1,48 @@
+{{!--
+  render/location.hbs — one render type for all tiers
+  (region / cluster / system / body). Shows: breadcrumb up the parent
+  chain, the entity's tier + description, optional body details, and a
+  derived table of children (next tier down), each linking down.
+--}}
+{{#if location.crumbs}}
+  <p class="loc-crumbs">
+    {{#each location.crumbs}}<a data-action="navigate" data-target="{{this.target}}">{{this.name}}</a> <span class="loc-crumb-sep">/</span> {{/each}}
+    <span class="loc-crumb-current">{{screen.name}}</span>
+  </p>
+{{/if}}
+
+<div class="loc-header">
+  <span class="loc-tier">{{location.tierLabel}}{{#if location.bodyType}} :: {{location.bodyType}}{{/if}}</span>
+</div>
+
+{{#if location.description}}
+  <p class="loc-desc">{{location.description}}</p>
+{{/if}}
+
+{{#if location.details}}
+  <dl class="rel-list">
+    {{#each location.details}}<dt>{{this.[0]}}</dt><dd>{{this.[1]}}</dd>{{/each}}
+  </dl>
+{{/if}}
+
+{{#if location.children}}
+  <p class="acq-label">{{location.childTierLabel}}S</p>
+  <table class="mission-index">
+    <thead>
+      <tr>
+        <th>{{location.childTierLabel}}</th>
+        {{#if location.childrenAreBodies}}<th>Type</th>{{/if}}
+        <th>Overview</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each location.children}}
+        <tr class="nav-card" data-action="navigate" data-target="{{this.target}}">
+          <td><span class="roster-name">{{this.name}}</span></td>
+          {{#if ../location.childrenAreBodies}}<td>{{this.bodyType}}</td>{{/if}}
+          <td>{{this.description}}</td>
+        </tr>
+      {{/each}}
+    </tbody>
+  </table>
+{{/if}}

@@ -1,0 +1,36 @@
+{{!--
+  bindings.hbs — player -> crew member binding UI.
+  One row per non-GM user with a crew-member dropdown. Field names are
+  bind.<userId> so the submit handler reads a userId -> memberId map.
+--}}
+<div class="terminal-bindings-body">
+  <p class="hint">Map each player to the crew member they play. Their feed
+    comments and likes will link to that dossier.</p>
+
+  {{#if users.length}}
+    <table class="bindings-table">
+      <thead><tr><th>Player</th><th>Plays</th></tr></thead>
+      <tbody>
+        {{#each users}}
+          <tr>
+            <td>{{this.name}}</td>
+            <td>
+              <select name="bind.{{this.id}}">
+                <option value="">— none —</option>
+                {{#each ../crew}}
+                  <option value="{{this.id}}" {{#if (eq this.id ../boundTo)}}selected{{/if}}>{{this.name}}</option>
+                {{/each}}
+              </select>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <p>No player (non-GM) users exist yet.</p>
+  {{/if}}
+
+  <footer class="sheet-footer">
+    <button type="submit"><i class="fa-solid fa-save"></i> Save Bindings</button>
+  </footer>
+</div>

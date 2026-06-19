@@ -1,0 +1,39 @@
+{
+  "render": "feed",
+  "title": "SSV MIDWAY SR-2 // CREW FEED",
+  "tag": "SASO",
+  "prompt": "SHIP NETWORK — RECENT ACTIVITY",
+  "posts": [
+    {
+      "id": "post-003",
+      "author": "Johanna Byas",
+      "authorId": "byas",
+      "role": "Ship Yeoman",
+      "time": "28 Oct — 0830",
+      "official": true,
+      "body": "A reminder to the crew: requisitions are for mission-critical equipment. The requisitions board is not a wishlist. Requests will be reviewed on the basis of operational need, and I will be applying that standard generously to myself and sparingly to everyone else. Thank you for your understanding.",
+      "likes": ["Voss", "Markov", "Matthews", "Sorka", "Domitus"],
+      "replies": [
+        { "author": "Noah Callaghan", "authorId": "callaghan", "time": "28 Oct — 0845", "body": "Noted. Reluctantly." }
+      ]
+    },
+    {
+      "id": "post-002",
+      "author": "James Markov",
+      "authorId": "markov",
+      "role": "Drive Engineer",
+      "time": "27 Oct — 1910",
+      "body": "Drive's running clean after the recalibration. Whoever tracked down that calibration kit, you have my thanks. She hasn't purred like this since we acquired her.",
+      "likes": ["Matthews", "Voss"]
+    },
+    {
+      "id": "post-001",
+      "author": "Juliso Ennidos",
+      "authorId": "ennidos-j",
+      "role": "Squad Member",
+      "time": "26 Oct — 2200",
+      "body": "Still no Cobra launcher in requisitions. I remain available to discuss.",
+      "likes": []
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "render": "dossier",
+  "name": "Thomas Matthews",
+  "role": "Navigator",
+  "department": "Systems",
+  "status": "active",
+  "sort": 10,
+  "species": "Human",
+  "gender": "Male",
+  "dateOfHire": "05 October 2186",
+  "stationBonus": { "label": "+1 Navigation", "system": true },
+  "background": "Former N7 operative, honorably discharged. Earned his designation at 32, retired at 39. Met on Omega.",
+  "proficiencies": [
+    { "name": "Navigation" },
+    { "name": "Ship Systems" }
+  ],
+  "relationships": [
+    { "label": "Friend", "display": "James Markov", "target": "crew/markov" }
+  ],
+  "notes": ["No surviving service relationships, but old contacts may surface."]
+}

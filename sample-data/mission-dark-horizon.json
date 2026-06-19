@@ -1,0 +1,27 @@
+{
+  "render": "mission",
+  "name": "DARK HORIZON",
+  "status": "complete",
+  "issueDate": "18 October 2186",
+  "date": "2186-10-18",
+  "issuedBy": "Special Operations Commander — Lidia Juniper",
+  "location": { "sector": "Attican Traverse", "cluster": "Shadow Sea", "system": "Iera", "planet": "Horizon" },
+  "locationLinks": { "sector": "attican-traverse", "cluster": "shadow-sea", "system": "iera", "planet": "horizon" },
+  "locationLabel": "Horizon — Iera",
+  "reward": "₡75,000",
+  "parent": "amber-shadow",
+  "briefing": [
+    "The Alliance lost contact with the entire Iera system, including Cordis Station on Horizon.",
+    "Travel to Horizon, assess Cordis Station, and report back."
+  ],
+  "notes": [
+    { "label": "ADDITIONAL NOTES", "body": "We have no Alliance assets in the Iera system, and the nature of the blackout is unknown. Horizon has faced turmoil before. Use discretion.", "sig": "June" }
+  ],
+  "aar": {
+    "body": [
+      "The crew found a transmission relay in orbit, transmitting to the Omega Nebula; the relay station had been wiped before abandonment.",
+      "The mining facility concealed an underground research station where tests were run on miners. Mutated humans — \"Adjutants\" — remained contained, some breached. The crew vacated and crashed the relay into the facility."
+    ],
+    "acquisitions": []
+  }
+}

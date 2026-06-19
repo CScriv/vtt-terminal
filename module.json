@@ -1,0 +1,34 @@
+{
+  "id": "terminal",
+  "title": "Terminal",
+  "description": "A generic, theme-able in-world terminal/computer UI engine for hi-tech tabletop games. Renders navigable screens from JSON data stored on flagged journals. Game-specific styling and content live in swappable themes and data documents.",
+  "version": "0.2.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13.351"
+  },
+  "authors": [
+    { "name": "Caleb Scrivner" }
+  ],
+  "esmodules": [
+    "scripts/terminal.mjs"
+  ],
+  "styles": [
+    "styles/terminal.css"
+  ],
+  "socket": true,
+  "relationships": {
+    "recommended": [
+      {
+        "id": "seasons-and-stars",
+        "type": "module",
+        "reason": "In-fiction timestamps on comments (and later inbox messages). Optional — falls back to real-world time if absent."
+      }
+    ]
+  },
+  "flags": {
+    "terminal": {
+      "note": "Data journals are discovered via flags.terminal.type on JournalEntry documents."
+    }
+  }
+}

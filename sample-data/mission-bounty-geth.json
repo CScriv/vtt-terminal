@@ -1,0 +1,23 @@
+{
+  "render": "mission",
+  "name": "BOUNTY: GETH",
+  "status": "ongoing",
+  "issueDate": "11 October 2186",
+  "date": "2186-10-11",
+  "issuedBy": "Itirii Ship Commander — Wume vas Itirii",
+  "location": { "sector": "ANY" },
+  "locationLabel": "ANY",
+  "reward": "₡40,000 / ship",
+  "briefing": [
+    "Wume vas Itirii has asked for help eliminating Geth ships. He offers ₡40,000 for any Geth ship the crew destroys."
+  ],
+  "tally": {
+    "stats": [
+      { "num": "1", "label": "Ships Destroyed" },
+      { "num": "₡40,000", "label": "Credits Earned" }
+    ],
+    "entries": [
+      { "date": "10 Oct 2186", "location": "Dholen — Far Rim", "notes": "Engaged on arrival; destroyed in self-defense", "bounty": "₡40,000" }
+    ]
+  }
+}

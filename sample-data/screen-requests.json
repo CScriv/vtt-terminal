@@ -1,0 +1,39 @@
+{
+  "render": "request-board",
+  "title": "SSV MIDWAY SR-2 // CREW REQUESTS",
+  "tag": "SASO",
+  "prompt": "PERSONAL MISSIONS",
+  "cardClass": "req-mission",
+  "sections": [
+    { "name": "OPEN REQUESTS", "statuses": ["open"] },
+    { "name": "ACCEPTED", "statuses": ["accepted"] },
+    { "name": "CLOSED", "statuses": ["complete", "declined"], "dim": true }
+  ],
+  "requests": [
+    {
+      "id": "cr-001", "title": "Recover my research data from the Hope's wreck site",
+      "from": "Lisa Voss", "fromId": "voss", "role": "Doctor",
+      "status": "open", "date": "27 Oct",
+      "body": "My medical research was backed up to a relay buoy we passed on the way out. If it's still there, I want it. Some of what I was studying might matter more than I realized at the time."
+    },
+    {
+      "id": "cr-002", "title": "Track the beacon Markov planted on the Eclipse ship",
+      "from": "James Markov", "fromId": "markov", "role": "Drive Engineer",
+      "status": "accepted", "date": "24 Oct",
+      "body": "That subspace beacon I planted is still transmitting. Whoever bought that targeting tech off the Eclipse is out there, and I'm curious where the signal leads.",
+      "promote": { "target": "missions/kairavamori", "label": "see Mission Log" }
+    },
+    {
+      "id": "cr-003", "title": "Settle a debt on Omega before we left",
+      "from": "Zemare T'haala", "fromId": "thaala", "role": "Pilot",
+      "status": "complete", "date": "16 Oct",
+      "body": "There's someone on Omega I owe money to. The kind you don't want following the ship. Handle it before we're out of range and I'll fly anything you point me at."
+    },
+    {
+      "id": "cr-004", "title": "Smuggle a case of \"premium stock\" aboard, no questions",
+      "from": "Noah Callaghan", "fromId": "callaghan", "role": "Acquisitions Officer",
+      "status": "declined", "date": "19 Oct",
+      "body": "I know a guy. He's got a case of the good stuff that fell off a transport. Just need a little cargo space and for nobody to look too closely. For the crew's morale, obviously."
+    }
+  ]
+}

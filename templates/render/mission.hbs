@@ -1,0 +1,105 @@
+{{!--
+  render/mission.hbs — mission detail (full).
+  Block order: meta -> briefing -> in-character note(s) -> AAR
+  (+acquisitions) -> tally -> LINKED OPERATIONS (derived) -> PART OF.
+  Every block past meta/briefing is optional; appears only if present.
+
+  Schema (all optional unless noted):
+    name (req), status, issueDate, issuedBy, reward
+    location: { sector, cluster, system, planet }   (structured)
+    briefing: [ "para", ... ]
+    notes:   [ { label, body, sig } ]               (amber, in-character)
+    aar:     { body: [ "para" ], acquisitions: [ { name, tag } ] }  (green)
+    tally:   { stats: [ { num, label } ], entries: [ { date, location, notes, bounty } ] }
+    parent:  "<mission-id>"                          (drives PART OF + derived children)
+--}}
+<div class="mission">
+  <div class="mission-title">{{#if screen.name}}{{screen.name}}{{else}}{{screen.title}}{{/if}}</div>
+
+  <dl class="mission-meta">
+    {{#if screen.issueDate}}<dt>Issue Date</dt><dd>{{screen.issueDate}}</dd>{{/if}}
+    {{#if screen.issuedBy}}<dt>Issued By</dt><dd>{{screen.issuedBy}}</dd>{{/if}}
+    {{#if screen.location.sector}}<dt>Sector</dt><dd>{{locLink screen.location.sector screen.locationLinks.sector}}</dd>{{/if}}
+    {{#if screen.location.cluster}}<dt>Cluster</dt><dd>{{locLink screen.location.cluster screen.locationLinks.cluster}}</dd>{{/if}}
+    {{#if screen.location.system}}<dt>System</dt><dd>{{locLink screen.location.system screen.locationLinks.system}}</dd>{{/if}}
+    {{#if screen.location.planet}}<dt>Planet</dt><dd>{{locLink screen.location.planet screen.locationLinks.planet}}</dd>{{/if}}
+    {{#if screen.reward}}<dt>Reward</dt><dd><strong>{{screen.reward}}</strong></dd>{{/if}}
+    {{#if screen.status}}<dt>Status</dt><dd>{{> terminalStatusFlag status=screen.status}}</dd>{{/if}}
+  </dl>
+
+  {{#if screen.briefing}}
+    <hr>
+    {{#each screen.briefing}}<p>{{this}}</p>{{/each}}
+  {{/if}}
+
+  {{#each screen.notes}}
+    <div class="mission-note">
+      <div class="mission-note-label">▶ {{#if this.label}}{{this.label}}{{else}}ADDITIONAL NOTES{{/if}}</div>
+      <p>{{this.body}}</p>
+      {{#if this.sig}}<p class="mission-note-sig">— {{this.sig}}</p>{{/if}}
+    </div>
+  {{/each}}
+</div>
+
+{{#if screen.aar}}
+  <div class="resolution">
+    <div class="resolution-title">AFTER-ACTION REPORT</div>
+    {{#each screen.aar.body}}<p>{{this}}</p>{{/each}}
+    {{#if screen.aar.acquisitions.length}}
+      <p class="acq-label">ACQUISITIONS</p>
+      <ul class="acq-list">
+        {{#each screen.aar.acquisitions}}
+          <li>{{this.name}}{{#if this.tag}} <span class="acq-tag">{{this.tag}}</span>{{/if}}</li>
+        {{/each}}
+      </ul>
+    {{/if}}
+  </div>
+{{/if}}
+
+{{#if screen.tally}}
+  <div class="tally">
+    {{#if screen.tally.stats.length}}
+      <div class="tally-stats">
+        {{#each screen.tally.stats}}
+          <div class="tally-stat">
+            <div class="tally-num">{{this.num}}</div>
+            <div class="tally-lbl">{{this.label}}</div>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+    {{#if screen.tally.entries.length}}
+      <table>
+        <thead><tr><th>Date</th><th>Location</th><th>Notes</th><th>Bounty</th></tr></thead>
+        <tbody>
+          {{#each screen.tally.entries}}
+            <tr>
+              <td>{{this.date}}</td><td>{{this.location}}</td>
+              <td>{{this.notes}}</td><td>{{this.bounty}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{/if}}
+  </div>
+{{/if}}
+
+{{#if children}}
+  <div class="dossier-block">
+    <div class="dossier-block-label">LINKED OPERATIONS</div>
+    <table class="mission-index">
+      <tbody>
+        {{#each children}}
+          <tr class="nav-card" data-action="navigate" data-target="{{this.target}}">
+            <td>{{> terminalStatusFlag status=this.status}}</td>
+            <td><span class="roster-name">{{this.name}}</span></td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+{{/if}}
+
+{{#if parent}}
+  <p class="term-prompt">&gt; PART OF: <a class="nav-link" data-action="navigate" data-target="{{parent.target}}">{{parent.name}}</a></p>
+{{/if}}

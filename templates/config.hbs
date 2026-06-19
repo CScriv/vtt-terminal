@@ -1,0 +1,50 @@
+{{!--
+  config.hbs — Terminal Data form.
+  Adds flag-JSON storage + an in-app JSON editor so flag-stored
+  payloads need no console. "Load from body" migrates page-body JSON
+  into the editor; "Format / Validate" pretty-prints and checks it.
+--}}
+<div class="terminal-config-body">
+  <p class="hint">Configure how <strong>{{journalName}}</strong> behaves on the terminal.</p>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="enabled" {{#if enabled}}checked{{/if}} />
+      Live on terminal
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label>Collection <span class="hint">(optional)</span></label>
+    <input type="text" name="collection" value="{{collection}}" placeholder="e.g. crew (blank = standalone screen)" />
+  </div>
+
+  <div class="form-group">
+    <label>ID</label>
+    <input type="text" name="id" value="{{id}}" placeholder="screen id, or member id within a collection" />
+  </div>
+
+  <hr>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox" name="useFlag" {{#if useFlag}}checked{{/if}} />
+      Use flag storage (required for interactive screens that get written to)
+    </label>
+    <p class="hint">When on, the app reads this screen's JSON from the flag below
+      instead of the page body. Status changes / likes write here.</p>
+  </div>
+
+  <div class="form-group">
+    <div class="terminal-json-toolbar">
+      <button type="button" data-action="loadFromBody"><i class="fa-solid fa-down-long"></i> Load from body</button>
+      <button type="button" data-action="formatJson"><i class="fa-solid fa-wand-magic-sparkles"></i> Format / Validate</button>
+    </div>
+    <textarea name="jsonText" rows="16" spellcheck="false" class="terminal-json" placeholder="{ ... screen JSON ... }">{{jsonText}}</textarea>
+    <p class="hint">Edited here only when flag storage is on. Invalid JSON won't save.</p>
+  </div>
+
+  <footer class="sheet-footer">
+    <button type="submit"><i class="fa-solid fa-save"></i> Save</button>
+  </footer>
+</div>

@@ -1,0 +1,24 @@
+{
+  "render": "datapad",
+  "title": "RECOVERED DATAPAD // CERBERUS OPS",
+  "tag": "ENCRYPTED",
+  "source": "Kairavamori facility",
+  "date": "28 Oct 2186",
+  "revealed": [],
+  "blocks": [
+    { "id": "meta", "type": "keyvalue", "label": "METADATA",
+      "rows": [["Encryption","BLACK"],["Last Uplink","14 Oct 86 — Relay OSO-4"]] },
+    { "id": "ops-head", "type": "heading", "text": "Operations" },
+    { "id": "typhon-ra", "type": "text", "secret": true, "label": "PROJECT TYPHON: RA",
+      "body": "Local assets emplaced near ANK-1. Fuel-grade isotopes acquired, interspersed to minimize EMA attention. Transport to OKU-3R for refinement. Final destination: UUA-2." },
+    { "id": "personnel", "type": "table", "secret": true, "label": "REGISTERED PERSONNEL",
+      "headers": ["User","Position","Name","Clearance"],
+      "rows": [
+        ["G-2217","Field Operative","Halvik Marrow","RED"],
+        ["L-4339","Intelligence Commander","Othis Revek","BLACK"]
+      ] },
+    { "id": "msg-1", "type": "message", "secret": true,
+      "subject": "Assignment: Artifact Retrieval", "from": "L-4339", "to": "D-1647", "date": "05 Oct 2186",
+      "body": "We have detected [REDACTED] in TTC-3 that will assist your research. You are reassigned to oversee collection, transport, and containment. Transport details to follow. —R" }
+  ]
+}

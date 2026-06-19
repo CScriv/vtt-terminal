@@ -1,0 +1,69 @@
+{{!--
+  render/datapad.hbs — a single datapad, rendered from typed blocks.
+  Block types: heading, text, keyvalue, table, message.
+  Secret blocks: players only see them once revealed (filtered in JS).
+  GM sees all; secret blocks show a DECRYPTED/ENCRYPTED marker + a
+  reveal toggle.
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#each datapad.blocks}}
+  {{#if this.isPlaceholder}}
+    <div class="dp-block dp-secret dp-placeholder">
+      <div class="dp-locked-bar">▦ ENCRYPTED — DECRYPTION REQUIRED{{#if this.lockLabel}} :: {{this.lockLabel}}{{/if}}</div>
+    </div>
+  {{else}}
+  <div class="dp-block{{#if this.isSecret}} dp-secret{{#if this.isRevealed}} dp-revealed{{else}} dp-locked{{/if}}{{/if}}">
+
+    {{#if this.showToggle}}
+      <div class="dp-secret-bar">
+        <span class="dp-secret-tag">{{#if this.isRevealed}}▾ DECRYPTED{{else}}▦ ENCRYPTED{{/if}}</span>
+        <a class="dp-toggle" data-action="toggleReveal" data-collection="{{../datapad.collection}}" data-member-id="{{../datapad.memberId}}" data-block-id="{{this.blockId}}">
+          {{#if this.isRevealed}}[ re-lock ]{{else}}[ reveal ]{{/if}}
+        </a>
+      </div>
+    {{/if}}
+
+    {{#if (eq this.type "heading")}}
+      <p class="acq-label">{{this.text}}</p>
+
+    {{else if (eq this.type "text")}}
+      {{#if this.label}}<div class="dossier-block-label">{{this.label}}</div>{{/if}}
+      {{#if this.body}}<p>{{this.body}}</p>{{/if}}
+      {{#if this.items}}<ul class="acq-list">{{#each this.items}}<li>{{this}}</li>{{/each}}</ul>{{/if}}
+
+    {{else if (eq this.type "keyvalue")}}
+      {{#if this.label}}<div class="dossier-block-label">{{this.label}}</div>{{/if}}
+      <dl class="rel-list">
+        {{#each this.rows}}<dt>{{this.[0]}}</dt><dd>{{this.[1]}}</dd>{{/each}}
+      </dl>
+
+    {{else if (eq this.type "table")}}
+      {{#if this.label}}<p class="acq-label">{{this.label}}</p>{{/if}}
+      <table class="mission-index">
+        {{#if this.headers}}<thead><tr>{{#each this.headers}}<th>{{this}}</th>{{/each}}</tr></thead>{{/if}}
+        <tbody>
+          {{#each this.rows}}<tr>{{#each this}}<td>{{this}}</td>{{/each}}</tr>{{/each}}
+        </tbody>
+      </table>
+
+    {{else if (eq this.type "message")}}
+      <div class="mission-note">
+        <div class="mission-note-label">▶ {{#if this.subject}}{{this.subject}}{{else}}MESSAGE{{/if}}</div>
+        <div class="msg-meta">{{#if this.from}}FROM: {{this.from}}{{/if}}{{#if this.to}} — TO: {{this.to}}{{/if}}{{#if this.date}} — {{this.date}}{{/if}}</div>
+        {{#if this.body}}<p>{{this.body}}</p>{{/if}}
+      </div>
+
+    {{else}}
+      <p class="term-prompt">&gt; (unknown block type: {{this.type}})</p>
+    {{/if}}
+
+  </div>
+  {{/if}}
+{{/each}}
+
+{{#unless datapad.blocks.length}}
+  <p class="mission-empty">— no data —</p>
+{{/unless}}

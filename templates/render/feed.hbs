@@ -1,0 +1,51 @@
+{{!--
+  render/feed.hbs — crew feed.
+  `feed.posts`: array of posts, each with a composed `likeLine` and
+  `likeCount`. Author / reply-author names link to dossiers when
+  `authorId` is present (target crew/<authorId>). `official: true`
+  applies the notice styling.
+
+  Like indicator uses the up-arrow (▲). The LIKE control is display-
+  only for now; the player-write layer attaches here later, keyed by
+  post `id`.
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#each feed.posts}}
+  <div class="post{{#if this.official}} post-official{{/if}}">
+    <div class="post-head">
+      {{#if this.official}}<span class="post-notice">Notice</span>{{/if}}
+      <span class="post-author">
+        {{#if this.authorId}}<a class="nav-link" data-action="navigate" data-target="crew/{{this.authorId}}">{{this.author}}</a>{{else}}{{this.author}}{{/if}}
+      </span>
+      {{#if this.role}}<span class="post-role">{{this.role}}</span>{{/if}}
+      {{#if this.time}}<span class="post-time">{{this.time}}</span>{{/if}}
+    </div>
+
+    <div class="post-body"><p>{{this.body}}</p></div>
+
+    <div class="post-foot">
+      <span class="post-like nav-like" data-action="toggleLike" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}"><span class="like-arrow">▲</span> {{this.likeCount}}</span>
+      {{#if this.likeLine}}<span class="post-likers">{{this.likeLine}}</span>{{/if}}
+      <span class="post-reply-btn" data-action="addComment" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">↩ Reply</span>
+    </div>
+
+    {{#if this.replies.length}}
+      <div class="post-replies">
+        {{#each this.replies}}
+          <div class="reply">
+            <div class="reply-head">
+              <span class="reply-author">
+                {{#if this.authorId}}<a class="nav-link" data-action="navigate" data-target="crew/{{this.authorId}}">{{this.author}}</a>{{else}}{{this.author}}{{/if}}
+              </span>
+              {{#if this.time}}<span class="reply-time">{{this.time}}</span>{{/if}}
+            </div>
+            <div class="reply-body"><p>{{this.body}}</p></div>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+  </div>
+{{/each}}

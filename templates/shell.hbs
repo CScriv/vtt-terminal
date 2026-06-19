@@ -1,0 +1,49 @@
+{{!--
+  shell.hbs — frame + router.
+  Renders header (tag only if present), dispatches body to the render
+  partial, shows nav bar. Single root element.
+--}}
+<div class="terminal-screen {{themeClass}}">
+
+  {{#if error}}
+    <div class="term-header">
+      <p><span>TERMINAL</span> <span class="n7-tag">ERROR</span></p>
+    </div>
+    <div class="term-body">
+      <p class="term-prompt">&gt; DATA ERROR</p>
+      <p>{{error}}</p>
+      {{#if canGoBack}}
+        <p class="term-prompt"><a data-action="back">&gt; [ BACK ]</a></p>
+      {{/if}}
+      <p class="term-prompt"><a data-action="home">&gt; [ MAIN TERMINAL ]</a></p>
+    </div>
+
+  {{else}}
+    <div class="term-header">
+      <p>
+        <span>{{screen.title}}</span>
+        {{#if screen.tag}}<span class="n7-tag">{{screen.tag}}</span>{{/if}}
+      </p>
+    </div>
+
+    <div class="term-body">
+
+      {{#if unknownRender}}
+        <p class="term-prompt">&gt; UNKNOWN SCREEN TYPE: "{{renderType}}"</p>
+        <p>No layout is registered for this render type. Showing nothing.</p>
+      {{else}}
+        {{> (lookup . "renderTemplate") }}
+      {{/if}}
+
+      {{#unless isHome}}
+        <hr>
+        {{#if canGoBack}}
+          <p class="term-prompt"><a data-action="back">&gt; [ BACK ]</a></p>
+        {{/if}}
+        <p class="term-prompt"><a data-action="home">&gt; [ MAIN TERMINAL ]</a></p>
+      {{/unless}}
+
+    </div>
+  {{/if}}
+
+</div>

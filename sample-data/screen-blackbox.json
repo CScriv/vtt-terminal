@@ -1,0 +1,14 @@
+{
+  "render": "blackbox",
+  "title": "SSV MIDWAY SR-2 // BLACK BOX — FLIGHT RECORDER",
+  "tag": "SASO",
+  "prompt": "DECRYPTING MOVEMENT LOG",
+  "columns": ["Arrival Date", "Region", "Sector", "System", "Celestial Body"],
+  "log": [
+    { "Arrival Date": "01 October 2186", "Region": "EAS", "Sector": "Local Cluster", "System": "Sol", "Celestial Body": "Earth" },
+    { "Arrival Date": "05 October 2186", "Region": "TS", "Sector": "Omega Nebula", "System": "Sahrabarik", "Celestial Body": "Omega" },
+    { "Arrival Date": "11 October 2186", "Region": "TS", "Sector": "Far Rim", "System": "Dholen", "Celestial Body": "Tikkun" },
+    { "Arrival Date": "18 October 2186", "Region": "AT", "Sector": "Shadow Sea", "System": "Iera", "Celestial Body": "Horizon", "links": { "Sector": "shadow-sea", "System": "iera", "Celestial Body": "horizon" } },
+    { "Arrival Date": "28 October 2186", "Region": "TS", "Sector": "Omega Nebula", "System": "Kairavamori", "Celestial Body": "Research Station" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "render": "location",
+  "tier": "body",
+  "name": "Horizon",
+  "parent": "iera",
+  "bodyType": "Garden World",
+  "description": "An agricultural colony world, recently the site of a major incident. Population centers are dispersed across temperate equatorial zones.",
+  "details": [
+    ["Type", "Garden World"],
+    ["Gravity", "1.06 g"],
+    ["Atmosphere", "Breathable (Class 1)"],
+    ["Colony Est.", "2168 CE"],
+    ["Defense Grid", "Minimal"]
+  ]
+}

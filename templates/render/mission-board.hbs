@@ -1,0 +1,36 @@
+{{!--
+  render/mission-board.hbs — generated dispatch board.
+  `groups`: ordered sections [{ name, archive, members:[...] }].
+  Sections are collapsible. Non-archive sections default OPEN;
+  archive sections default CLOSED.
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#each groups}}
+  <details class="term-section"{{#unless this.archive}} open{{/unless}}>
+    <summary class="term-prompt">&gt; {{this.name}}</summary>
+    {{#if this.members.length}}
+      <table class="mission-index{{#if this.archive}} mission-archive{{/if}}">
+        <thead>
+          <tr><th>Issued</th><th>Status</th><th>Operation</th><th>Location</th><th>Reward</th></tr>
+        </thead>
+        <tbody>
+          {{#each this.members}}
+            <tr class="nav-card" data-action="navigate" data-target="{{this.target}}">
+              <td>{{this.date}}</td>
+              <td>{{> terminalStatusFlag status=this.status}}</td>
+              <td><span class="roster-name">{{this.name}}</span></td>
+              <td>{{this.location}}</td>
+              <td>{{this.reward}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="mission-empty">— none —</p>
+    {{/if}}
+  </details>
+  <hr>
+{{/each}}

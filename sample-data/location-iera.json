@@ -1,0 +1,7 @@
+{
+  "render": "location",
+  "tier": "system",
+  "name": "Iera",
+  "parent": "shadow-sea",
+  "description": "A single-star system whose habitable world, Horizon, hosts a growing human colony."
+}

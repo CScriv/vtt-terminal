@@ -1,0 +1,22 @@
+{{!--
+  render/hub.hbs — "hub" layout: prompt + grid of navigable cards.
+  Cards navigate via data-action="navigate" data-target="<target>".
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#if screen.links}}
+  <div class="crew-grid">
+    {{#each screen.links}}
+      <div class="crew-card nav-card" data-action="navigate" data-target="{{this.screen}}">
+        <div class="name">{{this.label}}</div>
+        {{#if this.sub}}<div class="role">{{this.sub}}</div>{{/if}}
+      </div>
+    {{/each}}
+  </div>
+{{/if}}
+
+{{#if screen.body}}
+  <p>{{screen.body}}</p>
+{{/if}}

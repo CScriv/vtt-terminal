@@ -1,0 +1,8 @@
+{{!--
+  status-flag.hbs — maps a status string to a flag span.
+  Lowercases the class so "Discharged" and "discharged" both map to
+  .flag-discharged. The visible label keeps the authored casing.
+--}}
+{{#if status}}
+  <span class="flag flag-{{lower status}}">{{status}}</span>
+{{/if}}

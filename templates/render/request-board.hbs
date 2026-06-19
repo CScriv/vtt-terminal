@@ -1,0 +1,50 @@
+{{!--
+  render/request-board.hbs — generic request board (requisitions +
+  crew requests). `requestBoard.groups`: ordered status-sections
+  [{ name, dim, requests:[...] }], date descending. Each request is
+  decorated in JS with `cardClass` (board-level accent, e.g.
+  "req-mission" for crew requests) and `dim` (resolved-state styling).
+  `from`/`fromId` links to a dossier; optional `promote` links to a
+  Mission Log entry (accepted crew requests).
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#each requestBoard.groups}}
+  <details class="term-section"{{#unless this.dim}} open{{/unless}}>
+    <summary class="term-prompt">&gt; {{this.name}}</summary>
+
+    {{#if this.requests.length}}
+      {{#each this.requests}}
+        <div class="req{{#if this.cardClass}} {{this.cardClass}}{{/if}}{{#if this.dim}} req-done{{/if}}">
+          <div class="req-head">
+            <span class="req-title">{{this.title}}</span>
+            <span class="req-status-btn" data-action="setStatus" data-request-id="{{this.id}}" data-screen-id="{{this.screenId}}">
+              {{> terminalStatusFlag status=this.status}}
+            </span>
+          </div>
+          <div class="req-meta">
+            <span class="req-from">
+              {{#if this.fromId}}<a class="nav-link" data-action="navigate" data-target="crew/{{this.fromId}}">{{this.from}}</a>{{else}}{{this.from}}{{/if}}
+            </span>
+            {{#if this.role}}<span class="req-role">{{this.role}}</span>{{/if}}
+            {{#if this.date}}<span class="req-date">{{this.date}}</span>{{/if}}
+          </div>
+          {{#if this.body}}<div class="req-body"><p>{{this.body}}</p></div>{{/if}}
+          {{#if this.updatedBy}}<div class="req-updated">Status set by {{this.updatedBy}}</div>{{/if}}
+          {{#if this.promote}}
+            <div class="req-link">
+              <span class="req-link-label">▶ PROMOTED TO OPERATION</span>
+              <a class="nav-link" data-action="navigate" data-target="{{this.promote.target}}">{{this.promote.label}}</a>
+            </div>
+          {{/if}}
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="mission-empty">— none —</p>
+    {{/if}}
+
+  </details>
+  <hr>
+{{/each}}

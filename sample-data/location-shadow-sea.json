@@ -1,0 +1,7 @@
+{
+  "render": "location",
+  "tier": "cluster",
+  "name": "Shadow Sea",
+  "parent": "attican-traverse",
+  "description": "A cluster on the edge of the Traverse, named for its dark nebular dust. Contains several systems of interest to colonial authorities."
+}

@@ -1,0 +1,13 @@
+{
+  "render": "mission",
+  "name": "OPERATION AMBER SHADOW",
+  "status": "ongoing",
+  "issueDate": "15 October 2186",
+  "date": "2186-10-15",
+  "issuedBy": "Special Operations Commander — Lidia Juniper",
+  "location": "ANY",
+  "briefing": [
+    "Cerberus has been confirmed responsible for the theft of the Midway and the supply-line raids.",
+    "Standing directive: watch Cerberus activity, determine their purpose, and disrupt their operations wherever able."
+  ]
+}

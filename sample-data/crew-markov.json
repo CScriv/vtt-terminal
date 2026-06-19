@@ -1,0 +1,17 @@
+{
+  "render": "dossier",
+  "name": "James Markov",
+  "role": "Drive Engineer",
+  "department": "Engineering",
+  "status": "active",
+  "sort": 10,
+  "species": "Human",
+  "gender": "Male",
+  "dateOfHire": "05 October 2186",
+  "stationBonus": { "label": "+1 Drive", "system": true },
+  "background": "An engineer proficient with drive systems, met on Omega. The crew's most reliable recruiter.",
+  "proficiencies": [ { "name": "Drive Systems" } ],
+  "relationships": [
+    { "label": "Friend", "display": "Thomas Matthews", "target": "crew/matthews" }
+  ]
+}

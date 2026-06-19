@@ -1,0 +1,34 @@
+{{!--
+  render/blackbox.hbs — flight recorder.
+  `blackbox`: { columns, rows:[{cells,current}], currentFields:[{label,value}], hasCurrent }
+  Green current-location callout (all columns as labeled fields) above
+  the full movement log; the current row is highlighted.
+--}}
+{{#if screen.prompt}}
+  <p class="term-prompt">&gt; {{screen.prompt}}</p>
+{{/if}}
+
+{{#if blackbox.hasCurrent}}
+  <div class="current-loc">
+    <div class="current-loc-label">▶ CURRENT LOCATION</div>
+    <dl class="current-loc-fields">
+      {{#each blackbox.currentFields}}
+        <dt>{{this.label}}</dt><dd>{{locLink this.value this.locId}}</dd>
+      {{/each}}
+    </dl>
+  </div>
+{{/if}}
+
+<p class="acq-label">MOVEMENT LOG</p>
+<table class="mission-index">
+  <thead>
+    <tr>{{#each blackbox.columns}}<th>{{this}}</th>{{/each}}</tr>
+  </thead>
+  <tbody>
+    {{#each blackbox.rows}}
+      <tr class="{{#if this.current}}row-current{{/if}}">
+        {{#each this.cells}}<td>{{locLink this.value this.locId}}</td>{{/each}}
+      </tr>
+    {{/each}}
+  </tbody>
+</table>

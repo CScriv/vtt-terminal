@@ -1,0 +1,13 @@
+{
+  "render": "crew-roster",
+  "title": "SSV MIDWAY SR-2 // CREW ROSTER",
+  "tag": "SASO",
+  "prompt": "PERSONNEL MANIFEST",
+  "collection": "crew",
+  "departments": [
+    "Administrative",
+    "Systems",
+    { "name": "Security", "subgroups": ["Alliance", "Turian"] },
+    { "name": "Strike Teams", "subgroups": ["Thresher Maw"] }
+  ]
+}

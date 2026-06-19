@@ -1,0 +1,11 @@
+{
+  "render": "mission-board",
+  "title": "SSV MIDWAY SR-2 // MISSION LOG",
+  "tag": "SASO",
+  "prompt": "OPERATIONS DISPATCH BOARD",
+  "collection": "missions",
+  "sections": [
+    { "name": "ACTIVE OPERATIONS", "statuses": ["active", "ongoing"] },
+    { "name": "MISSION ARCHIVE", "statuses": ["complete", "failed", "abandoned"], "archive": true }
+  ]
+}

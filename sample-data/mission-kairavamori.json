@@ -1,0 +1,15 @@
+{
+  "render": "mission",
+  "name": "KAIRAVAMORI RESEARCH FACILITY",
+  "status": "active",
+  "issueDate": "28 October 2186",
+  "date": "2186-10-28",
+  "issuedBy": "Crew Directive",
+  "location": "Kairavamori — Omega Nebula",
+  "reward": "Unknown",
+  "parent": "amber-shadow",
+  "briefing": [
+    "Datapad intel identified a concealed Cerberus research facility on an unnamed moon in the Kairavamori system.",
+    "Locate the facility, determine the research being conducted, and disrupt it."
+  ]
+}

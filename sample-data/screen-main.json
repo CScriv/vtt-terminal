@@ -1,0 +1,13 @@
+{
+  "render": "hub",
+  "title": "SSV MIDWAY SR-2 // MAIN TERMINAL",
+  "tag": "SASO",
+  "prompt": "SYSTEM ONLINE — SELECT DIRECTORY",
+  "links": [
+    { "label": "CREW ROSTER",   "sub": "Personnel Manifest", "screen": "crew" },
+    { "label": "MISSION LOG",    "sub": "Operations Record",  "screen": "missions" },
+    { "label": "INTRANET",       "sub": "Ship Network",       "screen": "intranet" },
+    { "label": "BLACK BOX",      "sub": "Flight Recorder",    "screen": "blackbox" },
+    { "label": "CARGO MANIFEST", "sub": "Hold Inventory",     "screen": "cargo" }
+  ]
+}

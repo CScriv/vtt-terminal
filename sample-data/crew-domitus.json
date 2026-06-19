@@ -1,0 +1,21 @@
+{
+  "render": "dossier",
+  "name": "Acponia Domitus",
+  "role": "Squad Leader",
+  "department": "Security",
+  "subgroup": "Turian",
+  "status": "active",
+  "sort": 10,
+  "species": "Turian",
+  "gender": "Male",
+  "dateOfHire": "16 October 2186",
+  "background": "A Turian squad leader turned mercenary. Met on Omega.",
+  "relationships": [
+    {
+      "label": "Former Bar",
+      "display": "Vaana Taniso",
+      "target": "crew/taniso"
+    }
+  ],
+  "nickname": "Domitus"
+}
