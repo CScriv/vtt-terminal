@@ -1,0 +1,54 @@
+name: Release Module
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Substitute manifest fields
+        uses: microsoft/variable-substitution@v1
+        with:
+          files: "module.json"
+        env:
+          version: ${{ steps.version.outputs.VERSION }}
+          url: https://github.com/${{ github.repository }}
+          manifest: https://github.com/${{ github.repository }}/releases/latest/download/module.json
+          download: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.zip
+
+      - name: Create zip archive
+        run: |
+          zip -r module.zip \
+            module.json \
+            scripts/ \
+            styles/ \
+            lang/ \
+            templates/ \
+            packs/ \
+            assets/ \
+            LICENSE \
+            -x "*.git*" 2>/dev/null || \
+          zip -r module.zip module.json scripts/ styles/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            module.json
+            module.zip
