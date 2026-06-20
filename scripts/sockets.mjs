@@ -19,7 +19,7 @@ import { findScreenJournal, getPayload, findCollectionMember } from "./data.mjs"
 import { terminalTimestamp } from "./gametime.mjs";
 import { getBindings } from "./bindings.mjs";
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 const CHANNEL = `module.${MODULE_ID}`;
 
 /* ---- Public: request a write. Called from the UI on any client. ----

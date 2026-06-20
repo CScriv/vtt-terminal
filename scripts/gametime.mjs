@@ -16,7 +16,7 @@
    If none are usable, we fall back to a real-world short timestamp.
    ============================================================= */
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 
 /* Real-world fallback: "Mar 3, 02:45" style. */
 function wallClock() {
@@ -79,7 +79,7 @@ export function hasInGameCalendar() {
 
 /* Diagnostic: log the raw Seasons & Stars date object + what we'd
    format it to. Call from console:
-     game.modules.get("terminal").api.debugTime?.()
+     game.modules.get("vtt-terminal").api.debugTime?.()
    Use this to confirm/adjust the format to your calendar's shape. */
 export function debugTime() {
   const ss = game.seasonsStars?.api;

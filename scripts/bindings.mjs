@@ -15,7 +15,7 @@
 
 import { loadCollection } from "./data.mjs";
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 const SETTING = "bindings";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;

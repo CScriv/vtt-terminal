@@ -14,7 +14,7 @@
    it never costs a full-journal scan — id lookups stay cheap.
    ============================================================= */
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 
 /* All journals that are terminal screens. By default only ENABLED
    ones (the live terminal); pass includeDisabled for GM tooling. */

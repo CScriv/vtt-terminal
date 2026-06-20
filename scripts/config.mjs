@@ -18,7 +18,7 @@
    (getHeaderControlsJournalEntrySheet on 13.351).
    ============================================================= */
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 

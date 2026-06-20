@@ -14,7 +14,8 @@
     "scripts/terminal.mjs"
   ],
   "styles": [
-    "styles/terminal.css"
+    "styles/terminal.css",
+    "styles/compose.css"
   ],
   "socket": true,
   "url": "https://github.com/CScriv/vtt-terminal",
@@ -30,8 +31,8 @@
     ]
   },
   "flags": {
-    "terminal": {
-      "note": "Data journals are discovered via flags.terminal.type on JournalEntry documents."
+    "vtt-terminal": {
+      "note": "Data journals are discovered via flags.vtt-terminal.type on JournalEntry documents."
     }
   }
 }

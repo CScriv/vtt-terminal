@@ -1,0 +1,79 @@
+{{!--
+  compose.hbs — full ApplicationV2 compose window for the inbox.
+
+  Context (from ComposeMessageApp#_prepareContext):
+    isGM           viewer is the GM (FROM is a crew dropdown)
+    selfId/selfName  bound member id + display name (player FROM is fixed)
+    crew           [{ id, name, department, checked }]   (sorted)
+    departments    ["Engineering", ...]                  (sorted, unique)
+    prefillSubject pre-filled subject string
+
+  The root element is a <div> (ApplicationV2 tag: "div"), so the form
+  lives here in the template. The send button uses data-action="send"
+  rather than native submit.
+
+  The themeClass goes on this inner .compose-form wrapper, NOT the app
+  root: the theme rule sets position: relative / overflow: hidden, which
+  on the floating window frame would break the window's absolute
+  positioning. On the inner wrapper it skins the content and anchors the
+  scanline overlay correctly.
+--}}
+<form class="compose-form {{themeClass}}">
+<div class="compose-grid">
+
+  <div class="form-group">
+    <label class="term-prompt">&gt; FROM</label>
+    {{#if isGM}}
+      <select name="from" class="compose-from">
+        {{#each crew}}
+          <option value="{{this.id}}">{{this.name}}</option>
+        {{/each}}
+      </select>
+    {{else}}
+      <input type="hidden" name="from" value="{{selfId}}">
+      <div class="from-fixed">{{selfName}}</div>
+    {{/if}}
+  </div>
+
+  <div class="form-group">
+    <label class="term-prompt">&gt; TO</label>
+    <div class="to-toolbar">
+      <input type="text" class="to-filter" placeholder="filter recipients…" autocomplete="off">
+      <button type="button" class="to-toggle-all" data-action="toggleAll">select all</button>
+    </div>
+    <div class="to-list">
+      {{#if departments.length}}
+        <div class="to-group-label">Departments</div>
+        {{#each departments}}
+          <label class="to-check" data-search="{{this}} dept">
+            <input type="checkbox" name="to" value="{{this}}">
+            {{this}} <span class="to-tag">dept</span>
+          </label>
+        {{/each}}
+      {{/if}}
+      <div class="to-group-label">Crew</div>
+      {{#each crew}}
+        <label class="to-check" data-search="{{this.name}}">
+          <input type="checkbox" name="to" value="{{this.id}}"{{#if this.checked}} checked{{/if}}>
+          {{this.name}}
+        </label>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="term-prompt">&gt; SUBJECT</label>
+    <input type="text" name="subject" value="{{prefillSubject}}" autocomplete="off">
+  </div>
+
+  <div class="form-group compose-body-group">
+    <label class="term-prompt">&gt; MESSAGE</label>
+    <textarea name="body" rows="8" placeholder="Compose transmission…"></textarea>
+  </div>
+
+  <div class="compose-actions">
+    <button type="button" class="compose-send" data-action="send">[ SEND TRANSMISSION ]</button>
+  </div>
+
+</div>
+</form>

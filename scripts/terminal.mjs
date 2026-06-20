@@ -26,7 +26,10 @@ import "./controls.mjs";
 import "./sockets.mjs";
 import "./bindings.mjs";
 
-const MODULE_ID = "terminal";
+import { ComposeMessageApp } from "./compose.mjs";
+
+
+const MODULE_ID = "vtt-terminal";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -346,116 +349,32 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     requestWrite({ action: "toggleReveal", collection, memberId, blockId });
   }
 
-  /* GM compose: FROM (crew picker) + TO (crew members and/or
-     departments) + subject + body -> sendMessage write. */
-  static async #onComposeMessage(event, target) {
+    /* Compose: opens the standalone ComposeMessageApp. FROM/TO/subject/
+     body collection + the sendMessage write all live in that app now.
+     A reply click carries prefill (member id + "Re: ..." subject) on
+     the element; a fresh compose carries none.
+ 
+     Player guard: a non-GM with no bound mailbox identity can't compose;
+     we warn here so the window never opens empty. */
+  static #onComposeMessage(event, target) {
     event?.stopPropagation?.();
     const screenId = target?.dataset?.screenId;
     if (!screenId) return;
-
-    // Optional reply prefill carried on the clicked element.
-    const prefillTo = target?.dataset?.replyTo || null;          // a member id
-    const prefillSubject = target?.dataset?.replySubject || "";  // already "Re: ..."
-
-    const isGM = game.user.isGM;
-    // Players compose only if bound to a crew member (that's their FROM).
-    const selfId = isGM ? null : boundMemberId();
-    if (!isGM && !selfId) {
+ 
+    if (!game.user.isGM && !boundMemberId()) {
       ui.notifications?.warn("Terminal: you have no mailbox identity to send from.");
       return;
     }
-
-    const crew = loadCollection("crew")
-      .map(m => ({ id: m.id, name: m.data?.name ?? m.id, department: m.data?.department ?? null }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const departments = [...new Set(crew.map(m => m.department).filter(Boolean))].sort();
-
-    // FROM: GM picks any crew member; a player is locked to their bound id.
-    const selfName = selfId ? (crew.find(c => c.id === selfId)?.name ?? selfId) : null;
-    const fromField = isGM
-      ? `<select name="from">${crew.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select>`
-      : `<input type="hidden" name="from" value="${selfId}"><div class="from-fixed">${selfName}</div>`;
-
-    // TO as a scrollable checkbox list (departments first, then crew) —
-    // far more navigable than a tiny multi-select.
-    const deptChecks = departments.map(d =>
-      `<label class="to-check"><input type="checkbox" name="to" value="${d}"> ${d} <span class="to-tag">dept</span></label>`
-    ).join("");
-    const crewChecks = crew.map(m =>
-      `<label class="to-check"><input type="checkbox" name="to" value="${m.id}"${m.id === prefillTo ? " checked" : ""}> ${m.name}</label>`
-    ).join("");
-
-    const { DialogV2 } = foundry.applications.api;
-    const content = `
-      <div class="form-group">
-        <label>From</label>
-        ${fromField}
-      </div>
-      <div class="form-group">
-        <label>To</label>
-        <input type="text" class="to-filter" placeholder="filter recipients…" />
-        <div class="to-list">
-          <div class="to-group-label">Departments</div>
-          ${deptChecks}
-          <div class="to-group-label">Crew</div>
-          ${crewChecks}
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Subject</label>
-        <input type="text" name="subject" value="${prefillSubject.replace(/"/g, "&quot;")}" />
-      </div>
-      <div class="form-group">
-        <label>Message</label>
-        <textarea name="body" rows="5"></textarea>
-      </div>`;
-
-    const result = await DialogV2.prompt({
-      window: { title: "Compose Message" },
-      position: { width: 520 },
-      content,
-      render: (_ev, dialog) => {
-        // Wire the filter box to show/hide recipient rows.
-        const root = dialog.element;
-        const filter = root.querySelector(".to-filter");
-        if (!filter) return;
-        filter.addEventListener("input", () => {
-          const q = filter.value.trim().toLowerCase();
-          root.querySelectorAll(".to-check").forEach(lbl => {
-            const txt = lbl.textContent.toLowerCase();
-            lbl.style.display = (!q || txt.includes(q)) ? "" : "none";
-          });
-        });
-      },
-      ok: {
-        label: "Send",
-        callback: (_ev, button) => {
-          const form = button.form;
-          const to = Array.from(form.querySelectorAll('input[name="to"]:checked')).map(c => c.value);
-          return {
-            from: form.elements.from.value,
-            to,
-            subject: form.elements.subject.value.trim(),
-            body: form.elements.body.value.trim()
-          };
-        }
-      }
-    }).catch(() => null);
-
-    if (!result || !result.to.length || !result.body) {
-      if (result) ui.notifications?.warn("Terminal: a recipient and message body are required.");
-      return;
-    }
-
-    await requestWrite({
-      action: "sendMessage",
+ 
+    new ComposeMessageApp({
       screenId,
-      from: result.from,
-      to: result.to,
-      subject: result.subject || "(no subject)",
-      body: result.body
-    });
+      prefillTo: target?.dataset?.replyTo || null,
+      prefillSubject: target?.dataset?.replySubject || ""
+      // No onSent needed: sendMessage updates the journal, and the
+      // updateJournalEntry hook in sockets.mjs re-renders open terminals.
+    }).render(true);
   }
+
 
   async _prepareContext(_options) {
     const themeClass = game.settings.get(MODULE_ID, "themeClass");
@@ -1148,6 +1067,10 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   const mod = game.modules.get(MODULE_ID);
+  if (!mod) {
+    console.error(`${MODULE_ID} | module not found in game.modules — the MODULE_ID constant ("${MODULE_ID}") must match the "id" in module.json and the install folder name. The terminal will not open until these agree.`);
+    return;
+  }
   mod.api = buildApi();
   console.log(`${MODULE_ID} | ready`);
 });

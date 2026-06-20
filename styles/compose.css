@@ -1,0 +1,131 @@
+/* =============================================================
+   compose.css — styling for the ComposeMessageApp window.
+
+   Append to the module's existing stylesheet (or load as its own file).
+   It reuses the terminal's existing form classes (.form-group, .to-check,
+   .to-filter, .to-list, .to-group-label, .to-tag, .from-fixed, .term-prompt)
+   and adds only the new structural pieces the compose window introduces.
+
+   Colors deliberately use `currentColor` / inherited theme values so the
+   window adopts whatever palette the active theme class (e.g. .me-terminal)
+   sets on .terminal-app. Override per-theme as needed.
+   ============================================================= */
+
+/* The window is a flex column so the message textarea grows to fill. */
+.terminal-compose .window-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The inner form is a transparent flex pass-through between
+   .window-content and .compose-grid, so the grow chain to the textarea
+   stays intact. */
+.terminal-compose .compose-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.terminal-compose .compose-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 18px;   /* breathing room inside the themed frame (matches .term-body) */
+}
+
+/* Let the message group absorb leftover height; textarea fills it. */
+.terminal-compose .compose-body-group {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.terminal-compose .compose-body-group textarea {
+  flex: 1 1 auto;
+  resize: none;
+  min-height: 6rem;
+}
+
+/* Recipient toolbar: filter box + select-all on one row. */
+.terminal-compose .to-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.terminal-compose .to-toolbar .to-filter {
+  flex: 1 1 auto;
+}
+.terminal-compose .to-toggle-all {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.terminal-compose .to-toggle-all:hover {
+  opacity: 1;
+}
+
+/* Scrollable recipient list. Height is bounded so subject/body stay
+   visible even with a large crew. */
+.terminal-compose .to-list {
+  max-height: 11rem;
+  overflow-y: auto;
+  border: 1px solid currentColor;
+  padding: 0.4rem 0.5rem;
+}
+.terminal-compose .to-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0;
+  cursor: pointer;
+}
+.terminal-compose .to-group-label {
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+  margin: 0.35rem 0 0.15rem;
+}
+.terminal-compose .to-tag {
+  font-size: 0.75em;
+  opacity: 0.6;
+  border: 1px solid currentColor;
+  padding: 0 0.3rem;
+  margin-left: 0.25rem;
+}
+
+/* Fixed (player) FROM line. */
+.terminal-compose .from-fixed {
+  padding: 0.25rem 0;
+  opacity: 0.9;
+}
+
+/* Send button. */
+.terminal-compose .compose-actions {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+.terminal-compose .compose-send {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0.05em;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+.terminal-compose .compose-send:hover {
+  filter: brightness(1.25);
+}

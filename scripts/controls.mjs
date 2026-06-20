@@ -17,7 +17,7 @@
    the thing to refresh against the then-current scene-controls DOM.
    ============================================================= */
 
-const MODULE_ID = "terminal";
+const MODULE_ID = "vtt-terminal";
 
 Hooks.on("renderSceneControls", () => {
   // Re-render safe: bail if our button is already present.
