@@ -801,8 +801,13 @@
    provides the scrollbar. We do NOT change min-height (changing it
    collapsed the layout previously). */
 .terminal-app .terminal-screen {
-  overflow-y: visible;
-  overflow-x: hidden;
+  /* Both axes MUST be visible. If only one axis is `visible` while the
+     other is `hidden`, CSS coerces the visible axis to `auto`, turning
+     this wrapper into its own scroll container — it then absorbs the
+     overflow and .window-content (which has the real, bounded scrollbar)
+     never receives anything to scroll. Keeping both visible lets content
+     spill up to .window-content, which provides the scrollbar. */
+  overflow: visible;
 }
 .terminal-app .window-content {
   overflow-y: auto;
