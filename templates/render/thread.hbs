@@ -1,0 +1,45 @@
+{{!--
+  render/thread.hbs — mail thread detail (derived view over the inbox
+  journal, target "inbox/thread/<threadId>").
+
+  Context `thread` (from #prepThread):
+    subject       thread subject (from the root message)
+    messages[]    visible-to-viewer messages, oldest-first; each:
+                    { id, fromLabel, fromId, toLabels:[{id,label}], time,
+                      body, replyToIds[] }
+    replyToCsv    default reply recipients (newest msg participants minus me)
+    canCompose    viewer may reply
+    threadId / screenId
+
+  The whole thread is marked read on open via a hidden trigger
+  (data-action="openThread"); back returns to the inbox list.
+--}}
+<div class="thread-bar">
+  <a class="thread-back-link" data-action="back">&lt; INBOX</a>
+</div>
+
+<div class="thread-head" data-action="openThread" data-thread-id="{{thread.threadId}}" data-screen-id="{{thread.screenId}}">
+  <span class="thread-subject">{{thread.subject}}</span>
+  {{#if thread.messages.length}}<span class="thread-count-label">{{thread.countLabel}}</span>{{/if}}
+</div>
+
+{{#if thread.empty}}
+  <p class="inbox-empty">— no messages in this thread —</p>
+{{else}}
+  <div class="thread-messages">
+    {{#each thread.messages}}
+      <div class="thread-msg">
+        <div class="thread-msg-head">
+          <span class="msg-from">{{this.fromLabel}}</span>
+          <span class="msg-to">&rarr; {{#each this.toLabels}}{{this.label}}{{#unless @last}}, {{/unless}}{{/each}}</span>
+          {{#if this.time}}<span class="msg-time">{{this.time}}</span>{{/if}}
+        </div>
+        <div class="thread-msg-body"><p>{{this.body}}</p></div>
+      </div>
+    {{/each}}
+  </div>
+{{/if}}
+
+{{#if thread.canCompose}}
+  <p class="term-prompt thread-reply-trigger"><a data-action="replyThread" data-screen-id="{{thread.screenId}}" data-thread-id="{{thread.threadId}}" data-reply-to="{{thread.replyToCsv}}" data-subject="{{thread.subject}}">&gt; [ REPLY ]</a></p>
+{{/if}}

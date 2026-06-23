@@ -1,0 +1,69 @@
+{{!--
+  partials/feed-post.hbs — one crew-feed post (used for both the recent
+  list and the Archive section). Context is a single decorated post from
+  #prepFeed. Owner/permission flags: canEdit, canDelete, canPin, hasMenu
+  (post); canEdit/canDelete/hasMenu (each reply). pinned drives styling.
+--}}
+<div class="post{{#if this.official}} post-official{{/if}}{{#if this.pinned}} post-pinned{{/if}}">
+  <div class="post-head">
+    {{#if this.pinned}}<span class="post-pin-tag">[ PINNED ]</span>{{/if}}
+    {{#if this.official}}<span class="post-notice">Notice</span>{{/if}}
+    <span class="post-author">
+      {{#if this.authorId}}<a class="nav-link" data-action="navigate" data-target="crew/{{this.authorId}}">{{this.author}}</a>{{else}}{{this.author}}{{/if}}
+    </span>
+    {{#if this.role}}<span class="post-role">{{this.role}}</span>{{/if}}
+    {{#if this.time}}<span class="post-time">{{this.time}}</span>{{/if}}
+    {{#if this.edited}}<span class="post-edited">(edited)</span>{{/if}}
+
+    {{#if this.hasMenu}}
+      <span class="post-menu">
+        <span class="post-menu-trigger" data-action="togglePostMenu" title="More">···</span>
+        <span class="post-menu-items">
+          {{#if this.canEdit}}<span class="post-menu-item" data-action="editPost" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">Edit</span>{{/if}}
+          {{#if this.canPin}}<span class="post-menu-item" data-action="togglePin" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">{{#if this.pinned}}Unpin{{else}}Pin{{/if}}</span>{{/if}}
+          {{#if this.canDelete}}<span class="post-menu-item post-menu-danger" data-action="deletePost" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">Delete</span>{{/if}}
+        </span>
+      </span>
+    {{/if}}
+  </div>
+
+  <div class="post-body"><p>{{this.body}}</p></div>
+
+  <div class="post-foot">
+    <span class="react react-up{{#if this.reactions.mineUp}} react-mine{{/if}}" data-action="react" data-dir="up" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">
+      <span class="react-arrow">▲</span> {{this.reactions.up}}
+      {{#if this.reactions.up}}<span class="react-tip">{{this.reactions.upTip}}</span>{{/if}}
+    </span>
+    <span class="react react-down{{#if this.reactions.mineDown}} react-mine{{/if}}" data-action="react" data-dir="down" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">
+      <span class="react-arrow">| ▼</span> {{this.reactions.down}}
+      {{#if this.reactions.down}}<span class="react-tip">{{this.reactions.downTip}}</span>{{/if}}
+    </span>
+    <span class="post-reply-btn" data-action="addComment" data-post-id="{{this.id}}" data-screen-id="{{this.screenId}}">&gt; REPLY</span>
+  </div>
+
+  {{#if this.replies.length}}
+    <div class="post-replies">
+      {{#each this.replies}}
+        <div class="reply">
+          <div class="reply-head">
+            <span class="reply-author">
+              {{#if this.authorId}}<a class="nav-link" data-action="navigate" data-target="crew/{{this.authorId}}">{{this.author}}</a>{{else}}{{this.author}}{{/if}}
+            </span>
+            {{#if this.time}}<span class="reply-time">{{this.time}}</span>{{/if}}
+            {{#if this.edited}}<span class="reply-edited">(edited)</span>{{/if}}
+            {{#if this.hasMenu}}
+              <span class="reply-menu">
+                <span class="reply-menu-trigger" data-action="toggleReplyMenu" title="More">···</span>
+                <span class="reply-menu-items">
+                  {{#if this.canEdit}}<span class="reply-menu-item" data-action="editComment" data-post-id="{{../id}}" data-screen-id="{{../screenId}}" data-reply-id="{{this.replyId}}" data-reply-index="{{this.replyIndex}}">Edit</span>{{/if}}
+                  {{#if this.canDelete}}<span class="reply-menu-item reply-menu-danger" data-action="deleteComment" data-post-id="{{../id}}" data-screen-id="{{../screenId}}" data-reply-id="{{this.replyId}}" data-reply-index="{{this.replyIndex}}">Delete</span>{{/if}}
+                </span>
+              </span>
+            {{/if}}
+          </div>
+          <div class="reply-body"><p>{{this.body}}</p></div>
+        </div>
+      {{/each}}
+    </div>
+  {{/if}}
+</div>

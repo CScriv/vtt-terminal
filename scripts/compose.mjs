@@ -51,17 +51,32 @@ export class ComposeMessageApp extends HandlebarsApplicationMixin(ApplicationV2)
 
   /* ---- construction ----
      opts:
-       screenId      (required) inbox screen to send into
-       prefillTo     optional member id to pre-check
-       prefillSubject optional subject (already "Re: ...")
-       onSent        optional callback fired after a successful send */
-  constructor({ screenId, prefillTo = null, prefillSubject = "", onSent = null, ...rest } = {}) {
+       screenId       (required) inbox screen to send into
+       prefillTo      optional single member id to pre-check (legacy)
+       prefillToIds   optional array of member ids to pre-check (reply)
+       prefillSubject optional subject
+       mode           "compose" (default) or "reply"
+       threadId       (reply) thread to attach to
+       inReplyTo      (reply) parent message id
+       lockedSubject  (reply) thread subject, shown read-only
+       onSent         optional callback fired after a successful send */
+  constructor({ screenId, prefillTo = null, prefillToIds = null, prefillSubject = "",
+                mode = "compose", threadId = null, inReplyTo = null, lockedSubject = "",
+                onSent = null, ...rest } = {}) {
     super(rest);
     this.screenId = screenId;
     this.prefillTo = prefillTo;
+    this.prefillToIds = Array.isArray(prefillToIds) ? prefillToIds : (prefillTo ? [prefillTo] : []);
     this.prefillSubject = prefillSubject;
+    this.mode = mode;
+    this.threadId = threadId;
+    this.inReplyTo = inReplyTo;
+    this.lockedSubject = lockedSubject;
     this.onSent = onSent;
   }
+
+  get isReply() { return this.mode === "reply"; }
+  get title() { return this.isReply ? "Reply" : (this.options.window?.title ?? "Compose Message"); }
 
   /* Wire up listeners after render. The theme class is applied to an
      INNER wrapper in the template (not the app root): the theme rule sets
@@ -118,14 +133,19 @@ export class ComposeMessageApp extends HandlebarsApplicationMixin(ApplicationV2)
       ? (crew.find(c => c.id === selfId)?.name ?? selfId)
       : null;
 
+    const prefillSet = new Set(this.prefillToIds);
     return {
       themeClass: game.settings.get(MODULE_ID, "themeClass"),
       isGM,
+      isReply: this.isReply,
       selfId,
       selfName,
-      crew: crew.map(c => ({ ...c, checked: c.id === this.prefillTo })),
+      crew: crew.map(c => ({ ...c, checked: prefillSet.has(c.id) })),
       departments,
-      prefillSubject: this.prefillSubject ?? ""
+      // Reply: subject is fixed to the thread subject, shown read-only.
+      // Compose: editable subject prefill.
+      prefillSubject: this.isReply ? (this.lockedSubject ?? "") : (this.prefillSubject ?? ""),
+      lockedSubject: this.isReply
     };
   }
 
@@ -166,7 +186,10 @@ export class ComposeMessageApp extends HandlebarsApplicationMixin(ApplicationV2)
 
     const to = Array.from(form.querySelectorAll('input[name="to"]:checked'))
       .map(c => c.value);
-    const subject = form.elements.subject?.value?.trim() ?? "";
+    // In reply mode the subject is fixed to the thread's; otherwise read it.
+    const subject = this.isReply
+      ? (this.lockedSubject ?? "")
+      : (form.elements.subject?.value?.trim() ?? "");
     const body = form.elements.body?.value?.trim() ?? "";
 
     // Validation failure: warn and keep the window open for correction.
@@ -179,14 +202,19 @@ export class ComposeMessageApp extends HandlebarsApplicationMixin(ApplicationV2)
       return;
     }
 
-    await requestWrite({
+    const payload = {
       action: "sendMessage",
       screenId: this.screenId,
       from,
       to,
       subject: subject || "(no subject)",
       body
-    });
+    };
+    if (this.isReply) {
+      payload.threadId = this.threadId;
+      payload.inReplyTo = this.inReplyTo;
+    }
+    await requestWrite(payload);
 
     this.onSent?.();
     this.close();

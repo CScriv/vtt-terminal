@@ -1,0 +1,57 @@
+{{!--
+  compose-post.hbs — "new post" / "edit post" window for the crew feed.
+
+  Context (from ComposePostApp#_prepareContext):
+    isGM                    GM gets an author dropdown (+ custom option)
+    isEdit                  edit mode: body-only, author/notice hidden
+    initialBody             pre-fill for edit mode
+    canNotice               may flag as Notice (feedPinAuthority)
+    selfId/selfName/selfRole player's fixed crew identity
+    crew                    [{ id, name, role }]  (sorted, GM dropdown)
+
+  Root is a <div>; themeClass on the inner wrapper (not the app root).
+  Post/save via data-action="post". Reuses .terminal-compose classes.
+--}}
+<form class="compose-form {{themeClass}}">
+<div class="compose-grid">
+
+  {{#unless isEdit}}
+  <div class="form-group">
+    <label class="term-prompt">&gt; AUTHOR</label>
+    {{#if isGM}}
+      <select name="authorMember" class="post-author-select">
+        {{#each crew}}
+          <option value="{{this.id}}">{{this.name}}{{#if this.role}} — {{this.role}}{{/if}}</option>
+        {{/each}}
+        <option value="__custom__">— custom —</option>
+      </select>
+      <div class="post-author-custom" style="display:none;">
+        <input type="text" name="authorCustom" placeholder="Author name (e.g. SHIP SYSTEM)" autocomplete="off">
+      </div>
+    {{else}}
+      <input type="hidden" name="authorMember" value="{{selfId}}">
+      <div class="from-fixed">{{selfName}}{{#if selfRole}} <span class="post-role-inline">— {{selfRole}}</span>{{/if}}</div>
+    {{/if}}
+  </div>
+
+  {{#if canNotice}}
+  <div class="form-group">
+    <label class="post-notice-check">
+      <input type="checkbox" name="official">
+      Flag as <span class="post-notice">Notice</span>
+    </label>
+  </div>
+  {{/if}}
+  {{/unless}}
+
+  <div class="form-group compose-body-group">
+    <label class="term-prompt">&gt; {{#if isEdit}}EDIT{{else}}POST{{/if}}</label>
+    <textarea name="body" rows="6" placeholder="Broadcast to the crew feed…">{{initialBody}}</textarea>
+  </div>
+
+  <div class="compose-actions">
+    <button type="button" class="compose-send" data-action="post">[ {{#if isEdit}}SAVE{{else}}POST{{/if}} ]</button>
+  </div>
+
+</div>
+</form>

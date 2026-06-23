@@ -1,35 +1,58 @@
 {
-  "render": "inbox",
-  "title": "SSV MIDWAY SR-2 // INBOX",
-  "tag": "SASO",
-  "prompt": "SECURE MESSAGING",
-  "messages": [
-    {
-      "id": "msg-001",
-      "from": "byas",
-      "to": ["matthews"],
-      "subject": "Welcome aboard",
-      "time": "26 Oct — 0900",
-      "body": "Your quarters are assigned and your terminal access is live. See me if anything's amiss.",
-      "read": []
-    },
-    {
-      "id": "msg-002",
-      "from": "voss",
-      "to": ["Security"],
-      "subject": "Pre-mission medical check",
-      "time": "27 Oct — 1400",
-      "body": "All Security personnel report to med-bay for clearance before the next drop. No exceptions.",
-      "read": []
-    },
-    {
-      "id": "msg-003",
-      "from": "matthews",
-      "to": ["byas"],
-      "subject": "Re: Welcome aboard",
-      "time": "26 Oct — 0930",
-      "body": "Settled in. Thanks.",
-      "read": ["byas"]
+    "render": "inbox",
+    "title": "SSV MIDWAY SR-2 // INBOX",
+    "tag": "SASO",
+    "prompt": "SECURE MESSAGING",
+    "messages": [
+        {
+            "id": "msg-001",
+            "threadId": "msg-001",
+            "inReplyTo": null,
+            "from": "byas",
+            "to": [
+                "matthews"
+            ],
+            "subject": "Welcome aboard",
+            "wt": 69009367920,
+            "body": "Your quarters are assigned and your terminal access is live. See me if anything's amiss."
+        },
+        {
+            "id": "msg-002",
+            "threadId": "msg-002",
+            "inReplyTo": null,
+            "from": "voss",
+            "to": [
+                "Security"
+            ],
+            "subject": "Pre-mission medical check",
+            "wt": 69009472320,
+            "body": "All Security personnel report to med-bay for clearance before the next drop. No exceptions."
+        },
+        {
+            "id": "msg-003",
+            "threadId": "msg-001",
+            "inReplyTo": "msg-001",
+            "from": "matthews",
+            "to": [
+                "byas"
+            ],
+            "wt": 69009369720,
+            "body": "Settled in. Thanks."
+        }
+    ],
+    "_note": "Threaded mail. messages[] are flat: each has threadId (shared across a thread) and inReplyTo (parent msg id, null for a thread root). The root message carries the subject; replies omit it. Thread read-state lives in threads{ '<threadId>': { read:[memberId,...] } } — members caught up on the thread. wt = sortable in-world time. Sample: thread msg-001 ('Welcome aboard', byas->matthews) has a reply msg-003 (matthews->byas); threads.msg-001.read=[matthews] so byas sees it unread. msg-002 is a standalone thread (voss->Security). Anchored to ref now=69009558720. threads[].deleted = member ids who moved the thread to their Trash (parallel to read). A reply removes its recipients from deleted (resurfaces it). GM view ignores deleted.",
+    "threads": {
+        "msg-001": {
+            "read": [
+                "matthews"
+            ],
+            "deleted": []
+        },
+        "msg-002": {
+            "read": [
+                "voss"
+            ],
+            "deleted": []
+        }
     }
-  ]
 }

@@ -1,8 +1,10 @@
 {{!--
-  render/inbox.hbs — per-viewer inbox.
-  `inbox`: { isGM, hasBinding, inbox:[...], sent:[...], unreadCount, showSent }
-  Each message: { id, fromLabel, toLabels:[{id,label}], subject, time,
-  body, unread, screenId }. Clicking a message opens it (marks read).
+  render/inbox.hbs — per-viewer inbox, as a list of THREADS.
+  `inbox` (from #prepInbox): { isGM, hasBinding, canCompose, screenId,
+    threads:[{ threadId, subject, participantLine, count, time, unread,
+    screenId }], unreadCount }.
+  A row navigates to inbox/thread/<threadId>; the thread screen shows the
+  full conversation and the reply control. No inline expand here.
 --}}
 {{#if screen.prompt}}
   <p class="term-prompt">&gt; {{screen.prompt}}</p>
@@ -13,55 +15,58 @@
 {{/unless}}
 
 {{#if inbox.hasBinding}}
-  <details class="term-section" open>
-    <summary class="term-prompt">&gt; INBOX{{#if inbox.unreadCount}} <span class="inbox-unread-count">({{inbox.unreadCount}} unread)</span>{{/if}}</summary>
-    {{#if inbox.inbox.length}}
-      {{#each inbox.inbox}}
-        <details class="msg{{#if this.unread}} msg-unread{{/if}}" data-action="openMessage" data-message-id="{{this.id}}" data-screen-id="{{this.screenId}}">
-          <summary class="msg-head">
-            <span class="msg-from">{{this.fromLabel}}</span>
-            <span class="msg-subject">{{this.subject}}</span>
-            <span class="msg-time">{{this.time}}</span>
-          </summary>
-          <div class="msg-meta">
-            <span class="msg-to">To: {{#each this.toLabels}}{{this.label}}{{#unless @last}}, {{/unless}}{{/each}}</span>
-          </div>
-          <div class="msg-body"><p>{{this.body}}</p></div>
-          {{#if ../inbox.canCompose}}
-            <div class="msg-actions">
-              <a class="msg-reply-btn" data-action="composeMessage" data-screen-id="{{this.screenId}}" data-reply-to="{{this.from}}" data-reply-subject="{{this.replySubject}}">↩ Reply</a>
-            </div>
-          {{/if}}
-        </details>
-      {{/each}}
-    {{else}}
-      <p class="inbox-empty">— no messages —</p>
-    {{/if}}
-  </details>
-  <hr>
+  <p class="term-prompt">&gt; INBOX{{#if inbox.unreadCount}} <span class="inbox-unread-count">({{inbox.unreadCount}} unread)</span>{{/if}}</p>
 
-  {{#if inbox.showSent}}
-    <details class="term-section">
-      <summary class="term-prompt">&gt; SENT</summary>
-      {{#if inbox.sent.length}}
-        {{#each inbox.sent}}
-          <details class="msg">
-            <summary class="msg-head">
-              <span class="msg-from">To: {{#each this.toLabels}}{{this.label}}{{#unless @last}}, {{/unless}}{{/each}}</span>
-              <span class="msg-subject">{{this.subject}}</span>
-              <span class="msg-time">{{this.time}}</span>
-            </summary>
-            <div class="msg-body"><p>{{this.body}}</p></div>
-          </details>
+  {{#if inbox.filterCrew}}
+    <div class="inbox-filter">
+      <label class="inbox-filter-label">VIEWING AS</label>
+      <select class="inbox-filter-select">
+        <option value="">— ALL MAILBOXES —</option>
+        {{#each inbox.filterCrew}}
+          <option value="{{this.id}}"{{#if this.selected}} selected{{/if}}>{{this.name}}</option>
         {{/each}}
-      {{else}}
-        <p class="inbox-empty">— nothing sent —</p>
-      {{/if}}
-    </details>
-    <hr>
+      </select>
+    </div>
+  {{/if}}
+
+  {{#if inbox.threads.length}}
+    <div class="thread-list">
+      {{#each inbox.threads}}
+        <div class="thread-row{{#if this.unread}} thread-unread{{/if}}" data-action="navigate" data-target="{{this.screenId}}/thread/{{this.threadId}}">
+          {{#if this.unread}}<span class="thread-dot">●</span>{{else}}<span class="thread-dot thread-dot-read">·</span>{{/if}}
+          <span class="thread-row-subject">{{this.subject}}</span>
+          <span class="thread-row-participants">{{this.participantLine}}</span>
+          {{#if this.count}}<span class="thread-row-count">{{this.count}}</span>{{/if}}
+          <span class="thread-row-time">{{this.time}}</span>
+          {{#unless ../inbox.isGM}}<span class="thread-del" data-action="deleteThread" data-thread-id="{{this.threadId}}" data-screen-id="{{this.screenId}}" title="Move to trash">✕</span>{{/unless}}
+        </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="inbox-empty">— no messages —</p>
   {{/if}}
 
   {{#if inbox.canCompose}}
     <p class="term-prompt"><a data-action="composeMessage" data-screen-id="{{inbox.screenId}}">&gt; [ COMPOSE MESSAGE ]</a></p>
+  {{/if}}
+
+  {{#if inbox.hasTrash}}
+    <details class="feed-archive inbox-trash">
+      <summary class="term-prompt">&gt; TRASH ({{inbox.trashCount}})</summary>
+      <div class="feed-archive-body">
+        <div class="thread-list">
+          {{#each inbox.trashed}}
+            <div class="thread-row thread-trashed" data-action="navigate" data-target="{{this.screenId}}/thread/{{this.threadId}}">
+              <span class="thread-dot thread-dot-read">·</span>
+              <span class="thread-row-subject">{{this.subject}}</span>
+              <span class="thread-row-participants">{{this.participantLine}}</span>
+              {{#if this.count}}<span class="thread-row-count">{{this.count}}</span>{{/if}}
+              <span class="thread-row-time">{{this.time}}</span>
+              {{#unless ../inbox.isGM}}<span class="thread-del thread-restore" data-action="restoreThread" data-thread-id="{{this.threadId}}" data-screen-id="{{this.screenId}}" title="Restore to inbox">&#8631;</span>{{/unless}}
+            </div>
+          {{/each}}
+        </div>
+      </div>
+    </details>
   {{/if}}
 {{/if}}

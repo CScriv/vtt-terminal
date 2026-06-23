@@ -19,14 +19,16 @@ import {
   loadScreen, loadCollection, loadMember
 } from "./data.mjs";
 import { requestWrite, suppressReadRender } from "./sockets.mjs";
-import { debugTime } from "./gametime.mjs";
-import { resolveSelfAuthor, boundMemberId } from "./bindings.mjs";
+import { debugTime, formatWorldTime, terminalWorldTime, secondsPerDay } from "./gametime.mjs";
+import { resolveSelfAuthor, boundMemberId, canPinOrNotice } from "./bindings.mjs";
 import "./config.mjs";
 import "./controls.mjs";
 import "./sockets.mjs";
 import "./bindings.mjs";
 
 import { ComposeMessageApp } from "./compose.mjs";
+import { ComposePostApp } from "./compose-post.mjs";
+import { ComposeReplyApp } from "./compose-reply.mjs";
 
 
 const MODULE_ID = "vtt-terminal";
@@ -44,6 +46,7 @@ const RENDER_TEMPLATES = {
   "feed":         `modules/${MODULE_ID}/templates/render/feed.hbs`,
   "request-board":`modules/${MODULE_ID}/templates/render/request-board.hbs`,
   "inbox":        `modules/${MODULE_ID}/templates/render/inbox.hbs`,
+  "thread":       `modules/${MODULE_ID}/templates/render/thread.hbs`,
   "datapad-directory": `modules/${MODULE_ID}/templates/render/datapad-directory.hbs`,
   "datapad":      `modules/${MODULE_ID}/templates/render/datapad.hbs`,
   "location-directory": `modules/${MODULE_ID}/templates/render/location-directory.hbs`,
@@ -63,10 +66,21 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       back: TerminalApp.#onBack,
       home: TerminalApp.#onHome,
       setStatus: TerminalApp.#onSetStatus,
-      toggleLike: TerminalApp.#onToggleLike,
+      react: TerminalApp.#onReact,
       addComment: TerminalApp.#onAddComment,
-      openMessage: TerminalApp.#onOpenMessage,
+      openThread: TerminalApp.#onOpenThread,
+      replyThread: TerminalApp.#onReplyThread,
+      deleteThread: TerminalApp.#onDeleteThread,
+      restoreThread: TerminalApp.#onRestoreThread,
       composeMessage: TerminalApp.#onComposeMessage,
+      composePost: TerminalApp.#onComposePost,
+      deletePost: TerminalApp.#onDeletePost,
+      deleteComment: TerminalApp.#onDeleteComment,
+      editPost: TerminalApp.#onEditPost,
+      editComment: TerminalApp.#onEditComment,
+      togglePin: TerminalApp.#onTogglePin,
+      togglePostMenu: TerminalApp.#onTogglePostMenu,
+      toggleReplyMenu: TerminalApp.#onToggleReplyMenu,
       toggleReveal: TerminalApp.#onToggleReveal
     }
   };
@@ -78,6 +92,9 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /* Current target: a string like "main" or "crew/matthews". */
   target = null;
   #history = [];
+  /* GM mailbox filter: crew member id to view the inbox AS, or null.
+     Persists across inbox<->thread navigation; cleared on leaving inbox. */
+  #inboxFilter = null;
 
   get currentTarget() {
     return this.target ?? game.settings.get(MODULE_ID, "homeScreenId");
@@ -87,6 +104,13 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
      "crew/matthews" -> { collection: "crew", id: "matthews" }
      "missions"      -> { collection: null,  id: "missions"  } */
   static parseTarget(target) {
+    // Thread view: "inbox/thread/<threadId>" -> a derived view over the
+    // inbox journal (no separate journal). Special-cased before the generic
+    // collection/id split, which assumes the middle segment is a collection.
+    const threadMatch = /^([^/]+)\/thread\/(.+)$/.exec(target);
+    if (threadMatch) {
+      return { collection: null, id: threadMatch[1], view: "thread", threadId: threadMatch[2] };
+    }
     if (target.includes("/")) {
       const [collection, id] = target.split("/");
       return { collection, id };
@@ -96,6 +120,8 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async goTo(target, { pushHistory = true } = {}) {
     if (pushHistory && this.currentTarget) this.#history.push(this.currentTarget);
+    // Leaving the inbox/thread context clears the GM mailbox filter.
+    if (!/^inbox(\/|$)/.test(target)) this.#inboxFilter = null;
     this.target = target;
     await this.render(false);
   }
@@ -263,79 +289,231 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* Like control. Player: toggles their character name. GM: crew
      picker -> toggles that NPC's name. */
-  static async #onToggleLike(event, target) {
+  /* React to a post: up (like) or down (dislike). Direction comes from the
+     clicked control's data-dir. Reactions are keyed by crew member ID
+     (stable across nickname/name changes); the tooltip resolves id ->
+     display name at render. Player reacts as their bound member; GM is
+     prompted to pick which crew member is reacting. */
+  static async #onReact(event, target) {
     event?.stopPropagation?.();
     const postId = target?.dataset?.postId;
     const screenId = target?.dataset?.screenId;
+    const dir = target?.dataset?.dir === "down" ? "down" : "up";
     if (!postId || !screenId) return;
 
-    let name;
+    let memberId;
     if (game.user.isGM) {
-      const picked = await TerminalApp.#pickCrewMember("Like as…");
+      const picked = await TerminalApp.#pickCrewMember(dir === "down" ? "Dislike as…" : "Like as…");
       if (!picked) return;
-      name = picked.name;
+      memberId = picked.id;
     } else {
-      name = resolveSelfAuthor().author;
+      memberId = boundMemberId();
+      if (!memberId) {
+        ui.notifications?.warn("Terminal: you have no crew identity to react as.");
+        return;
+      }
     }
 
-    await requestWrite({ action: "toggleLike", screenId, postId, name });
+    await requestWrite({ action: "react", screenId, postId, memberId, dir });
   }
 
-  /* Reply control. Player: body input, authored as their BOUND crew
-     member (name + authorId) if a binding exists, else their character/
-     user name with no link. GM: crew picker + body, authored as the
-     chosen NPC (authorId link-correct). */
-  static async #onAddComment(event, target) {
+  /* Reply control: opens the standalone ComposeReplyApp for a post.
+     Author mechanics (player-fixed vs GM dropdown/custom) and the
+     addComment write all live in that app now. Player guard: a non-GM
+     with no bound crew identity can't reply. */
+  static #onAddComment(event, target) {
     event?.stopPropagation?.();
     const postId = target?.dataset?.postId;
     const screenId = target?.dataset?.screenId;
     if (!postId || !screenId) return;
 
-    const { DialogV2 } = foundry.applications.api;
-    const bodyField = `
-      <div class="form-group">
-        <label>Comment</label>
-        <textarea name="body" rows="3" placeholder="Write a reply…"></textarea>
-      </div>`;
-
-    let author, authorId = null, body;
-
-    if (game.user.isGM) {
-      const picked = await TerminalApp.#pickCrewMember("Reply as…", bodyField);
-      if (!picked || !picked.body) return;
-      author = picked.name;
-      authorId = picked.id;     // link-correct: crew member id
-      body = picked.body;
-    } else {
-      const result = await DialogV2.prompt({
-        window: { title: "Reply" },
-        content: bodyField,
-        ok: {
-          label: "Post",
-          callback: (_ev, button) => ({ body: button.form.elements.body.value.trim() })
-        }
-      }).catch(() => null);
-      if (!result || !result.body) return;
-      const self = resolveSelfAuthor();
-      author = self.author;
-      authorId = self.authorId; // set if the player is bound to a crew member
-      body = result.body;
+    if (!game.user.isGM && !boundMemberId()) {
+      ui.notifications?.warn("Terminal: you have no crew identity to reply as.");
+      return;
     }
 
-    await requestWrite({ action: "addComment", screenId, postId, author, authorId, body });
+    new ComposeReplyApp({ screenId, postId }).render(true);
   }
 
-  /* Open a message -> mark it read for the viewer (if bound + unread).
-     The <details> itself expands natively to show the body; we only
-     need to fire the read-write. */
-  static #onOpenMessage(event, target) {
-    const messageId = target?.dataset?.messageId;
+  /* Delete a post. The button only renders when the viewer may delete it
+     (GM, or the post's author); the write handler re-checks GM-side. */
+  static #onDeletePost(event, target) {
+    event?.stopPropagation?.();
+    const postId = target?.dataset?.postId;
     const screenId = target?.dataset?.screenId;
-    if (!messageId || !screenId) return;
+    if (!postId || !screenId) return;
+    requestWrite({ action: "deletePost", screenId, postId });
+  }
+
+  /* Delete a reply. Targets by stable replyId when present, else by index
+     (legacy replies authored before ids). Handler re-checks ownership. */
+  static #onDeleteComment(event, target) {
+    event?.stopPropagation?.();
+    const postId = target?.dataset?.postId;
+    const screenId = target?.dataset?.screenId;
+    if (!postId || !screenId) return;
+    const replyId = target?.dataset?.replyId || null;
+    const replyIndexRaw = target?.dataset?.replyIndex;
+    const replyIndex = (replyIndexRaw === undefined || replyIndexRaw === "")
+      ? null : Number(replyIndexRaw);
+    requestWrite({ action: "deleteComment", screenId, postId, replyId, replyIndex });
+  }
+
+  /* Edit a post: open the compose window in edit mode, pre-filled with the
+     current body. Author controls are hidden in edit mode; only the body
+     is editable. The editPost write changes body only + sets edited:true. */
+  static #onEditPost(event, target) {
+    event?.stopPropagation?.();
+    const postId = target?.dataset?.postId;
+    const screenId = target?.dataset?.screenId;
+    if (!postId || !screenId) return;
+
+    const res = loadScreen(screenId);
+    const posts = res.ok ? (res.data.posts ?? []) : [];
+    const post = posts.find(p => p.id === postId);
+    if (!post) { ui.notifications?.warn("Terminal: post not found."); return; }
+
+    new ComposePostApp({
+      screenId,
+      mode: "edit",
+      editPostId: postId,
+      initialBody: post.body ?? ""
+    }).render(true);
+  }
+
+  /* Edit a reply: open the reply window in edit mode, pre-filled. */
+  static #onEditComment(event, target) {
+    event?.stopPropagation?.();
+    const postId = target?.dataset?.postId;
+    const screenId = target?.dataset?.screenId;
+    if (!postId || !screenId) return;
+    const replyId = target?.dataset?.replyId || null;
+    const replyIndexRaw = target?.dataset?.replyIndex;
+    const replyIndex = (replyIndexRaw === undefined || replyIndexRaw === "")
+      ? null : Number(replyIndexRaw);
+
+    const res = loadScreen(screenId);
+    const posts = res.ok ? (res.data.posts ?? []) : [];
+    const post = posts.find(p => p.id === postId);
+    const replies = post && Array.isArray(post.replies) ? post.replies : [];
+    let reply = replyId ? replies.find(r => r.id === replyId) : null;
+    if (!reply && replyIndex != null && replyIndex >= 0 && replyIndex < replies.length) {
+      reply = replies[replyIndex];
+    }
+    if (!reply) { ui.notifications?.warn("Terminal: reply not found."); return; }
+
+    new ComposeReplyApp({
+      screenId,
+      postId,
+      mode: "edit",
+      editReplyId: replyId,
+      editReplyIndex: replyIndex,
+      initialBody: reply.body ?? ""
+    }).render(true);
+  }
+
+  /* Pin / unpin a post. Visibility gated by canPin (feedPinAuthority);
+     the handler re-checks GM-side. */
+  static #onTogglePin(event, target) {
+    event?.stopPropagation?.();
+    const postId = target?.dataset?.postId;
+    const screenId = target?.dataset?.screenId;
+    if (!postId || !screenId) return;
+    requestWrite({ action: "togglePin", screenId, postId });
+  }
+
+  /* Owner-menu open/close (post). Pure UI: toggle an `open` class on the
+     menu, closing any other open menus first. No write. */
+  static #onTogglePostMenu(event, target) {
+    event?.stopPropagation?.();
+    TerminalApp.#toggleMenu(target, ".post-menu");
+  }
+  static #onToggleReplyMenu(event, target) {
+    event?.stopPropagation?.();
+    TerminalApp.#toggleMenu(target, ".reply-menu");
+  }
+
+  /* Shared menu toggle: close other open menus in this app, toggle this
+     one. A document-level click (wired in _onRender) closes menus when
+     clicking elsewhere. */
+  static #toggleMenu(trigger, menuSelector) {
+    const menu = trigger.closest(menuSelector);
+    if (!menu) return;
+    const root = menu.closest(".terminal-app") ?? document;
+    const wasOpen = menu.classList.contains("open");
+    root.querySelectorAll(`${menuSelector}.open`).forEach(m => m.classList.remove("open"));
+    if (!wasOpen) menu.classList.add("open");
+  }
+
+  /* Open a thread -> mark the whole thread read for the viewer. Fired by
+     the thread-head element on the thread detail screen. */
+  static #onOpenThread(event, target) {
+    const threadId = target?.dataset?.threadId;
+    const screenId = target?.dataset?.screenId;
+    if (!threadId || !screenId) return;
     const memberId = boundMemberId();
     if (!memberId) return; // GM or unbound: nothing to mark
-    suppressReadRender();  // keep this client from collapsing the opened message
-    requestWrite({ action: "markRead", screenId, messageId, memberId });
+    suppressReadRender();  // don't let this client re-render mid-read
+    requestWrite({ action: "readThread", screenId, threadId, memberId });
+  }
+
+  /* Reply within a thread: open ComposeMessageApp in reply mode. Recipients
+     default to the thread's newest-message participants minus the viewer
+     (editable); subject is the thread subject, shown but locked; the send
+     carries the thread's id + inReplyTo so it nests. */
+  static #onReplyThread(event, target) {
+    event?.stopPropagation?.();
+    const screenId = target?.dataset?.screenId;
+    const threadId = target?.dataset?.threadId;
+    if (!screenId || !threadId) return;
+
+    if (!game.user.isGM && !boundMemberId()) {
+      ui.notifications?.warn("Terminal: you have no mailbox identity to reply from.");
+      return;
+    }
+
+    const replyTo = (target?.dataset?.replyTo || "").split(",").filter(Boolean);
+    new ComposeMessageApp({
+      screenId,
+      mode: "reply",
+      threadId,
+      inReplyTo: threadId,                 // reply attaches to the thread root id
+      prefillToIds: replyTo,               // editable, prefilled recipients
+      lockedSubject: target?.dataset?.subject || ""
+    }).render(true);
+  }
+
+  /* GM mailbox filter: set which crew member's mailbox to view (or All).
+     Fired by the inbox filter dropdown (change). Value "" clears the
+     filter. Instance state, so it survives the re-render. */
+  static #onFilterInbox(event, target) {
+    if (!game.user.isGM) return;
+    const memberId = target?.value || target?.dataset?.memberId || "";
+    this.#inboxFilter = memberId || null;
+    this.render(false);
+  }
+
+  /* Delete a thread from the viewer's mailbox (move to Trash). Inbox-row
+     control; stops propagation so it doesn't navigate into the thread. */
+  static #onDeleteThread(event, target) {
+    event?.stopPropagation?.();
+    const threadId = target?.dataset?.threadId;
+    const screenId = target?.dataset?.screenId;
+    if (!threadId || !screenId) return;
+    const memberId = boundMemberId();
+    if (!memberId) return; // GM/unbound: no personal mailbox to delete from
+    requestWrite({ action: "deleteThread", screenId, threadId, memberId });
+  }
+
+  /* Restore a trashed thread back to the viewer's inbox. */
+  static #onRestoreThread(event, target) {
+    event?.stopPropagation?.();
+    const threadId = target?.dataset?.threadId;
+    const screenId = target?.dataset?.screenId;
+    if (!threadId || !screenId) return;
+    const memberId = boundMemberId();
+    if (!memberId) return;
+    requestWrite({ action: "restoreThread", screenId, threadId, memberId });
   }
 
   /* GM toggles a datapad block's revealed state. */
@@ -367,19 +545,73 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
  
     new ComposeMessageApp({
-      screenId,
-      prefillTo: target?.dataset?.replyTo || null,
-      prefillSubject: target?.dataset?.replySubject || ""
-      // No onSent needed: sendMessage updates the journal, and the
-      // updateJournalEntry hook in sockets.mjs re-renders open terminals.
+      screenId
+      // Fresh compose: no prefill. Replies are handled separately by
+      // #onReplyThread (ComposeMessageApp reply mode). sendMessage updates
+      // the journal; the updateJournalEntry hook re-renders open terminals.
     }).render(true);
+  }
+
+  /* Open the "new post" window for a feed screen. Player guard mirrors
+     compose: a non-GM with no bound crew identity can't post. The addPost
+     write re-renders open terminals via the journal hook, so no callback. */
+  static #onComposePost(event, target) {
+    event?.stopPropagation?.();
+    const screenId = target?.dataset?.screenId;
+    if (!screenId) return;
+
+    if (!game.user.isGM && !boundMemberId()) {
+      ui.notifications?.warn("Terminal: you have no crew identity to post as.");
+      return;
+    }
+
+    new ComposePostApp({ screenId }).render(true);
+  }
+
+  /* After each render: wire a one-shot document click that closes any open
+     feed owner-menus when the user clicks outside a menu. Re-bound each
+     render (the element is replaced); we namespace by storing the handler
+     so we can detach the previous one. */
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    if (this.#menuOutsideHandler) {
+      document.removeEventListener("click", this.#menuOutsideHandler, true);
+    }
+    this.#menuOutsideHandler = (ev) => {
+      // If the click is on a menu trigger or inside a menu, leave it; the
+      // action handler manages those. Otherwise close all open menus.
+      if (ev.target?.closest?.(".post-menu, .reply-menu")) return;
+      this.element?.querySelectorAll?.(".post-menu.open, .reply-menu.open")
+        .forEach(m => m.classList.remove("open"));
+    };
+    document.addEventListener("click", this.#menuOutsideHandler, true);
+
+    // GM mailbox filter dropdown (a <select>; actions are click-bound, so
+    // wire its change event here).
+    const filterSel = this.element?.querySelector?.(".inbox-filter-select");
+    if (filterSel) {
+      filterSel.addEventListener("change", (ev) => {
+        TerminalApp.#onFilterInbox.call(this, ev, ev.target);
+      });
+    }
+  }
+
+  #menuOutsideHandler = null;
+
+  /* Detach the outside-click handler when the app closes. */
+  _onClose(options) {
+    if (this.#menuOutsideHandler) {
+      document.removeEventListener("click", this.#menuOutsideHandler, true);
+      this.#menuOutsideHandler = null;
+    }
+    super._onClose?.(options);
   }
 
 
   async _prepareContext(_options) {
     const themeClass = game.settings.get(MODULE_ID, "themeClass");
     const target = this.currentTarget;
-    const { collection, id } = TerminalApp.parseTarget(target);
+    const { collection, id, view, threadId } = TerminalApp.parseTarget(target);
     const homeId = game.settings.get(MODULE_ID, "homeScreenId");
 
     const base = {
@@ -493,8 +725,28 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     let inbox = null;
+    let thread = null;
+    let headerOverride = null;
+    let effectiveRenderType = renderType;
+    let effectiveTemplate = renderTemplate;
     if (renderType === "inbox") {
-      inbox = TerminalApp.#prepInbox(screen, id);
+      // GM mailbox filter (instance state): view the inbox/thread as a
+      // chosen crew member. Ignored for non-GM and cleared when leaving.
+      const asMemberId = game.user.isGM ? (this.#inboxFilter ?? null) : null;
+      if (view === "thread" && threadId) {
+        // Thread detail: a derived view over this same inbox journal.
+        thread = TerminalApp.#prepThread(screen, threadId, id, asMemberId);
+        effectiveRenderType = "thread";
+        effectiveTemplate = RENDER_TEMPLATES["thread"] ?? null;
+        // Header breadcrumb so the chrome itself signals "inside a thread":
+        // "THREAD › <subject>" (+ "as <member>" when GM-filtering).
+        headerOverride = {
+          title: `THREAD  ›  ${thread.subject}`,
+          tag: thread.filteredAs ? `AS ${thread.filteredAs}` : null
+        };
+      } else {
+        inbox = TerminalApp.#prepInbox(screen, id, asMemberId);
+      }
     }
 
     return {
@@ -506,9 +758,11 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       feed,
       requestBoard,
       inbox,
-      renderType,
-      renderTemplate,
-      unknownRender: !renderTemplate
+      thread,
+      headerOverride,
+      renderType: effectiveRenderType,
+      renderTemplate: effectiveTemplate,
+      unknownRender: !effectiveTemplate
     };
   }
 
@@ -519,7 +773,8 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await hb.loadTemplates(Object.values(RENDER_TEMPLATES));
     // Register the shared status-flag partial under a stable name.
     await hb.loadTemplates({
-      terminalStatusFlag: `modules/${MODULE_ID}/templates/partials/status-flag.hbs`
+      terminalStatusFlag: `modules/${MODULE_ID}/templates/partials/status-flag.hbs`,
+      terminalFeedPost: `modules/${MODULE_ID}/templates/partials/feed-post.hbs`
     });
   }
 
@@ -546,82 +801,190 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
        department token displays as the department name as-is.
      - read: array of member ids who've read it; unread = viewer absent.
      Sorted newest first. */
-  /* Build inbox render data, filtered for the current viewer.
-     Messages live on the inbox screen JSON as `messages: [...]`. Each:
-       { id, from, to: [ "<memberId>" | "<Department>" ], subject,
-         time, body, read: [ "<memberId>", ... ] }
-     Filtering:
-       - GM: sees everything (no filter), inbox = all, sent = none-special.
-       - Player: resolve their bound member id; a message is in their
-         INBOX if they're a direct recipient OR their department is a
-         recipient; in their SENT if they are the `from`.
-     Names are resolved from the crew collection at render (store id,
-     show name). Departments display as-is. Read state per viewer. */
-  static #prepInbox(screen, screenId) {
-    const messages = Array.isArray(screen.messages) ? screen.messages : [];
-
-    // Build a crew lookup: id -> { name, department }.
+  /* Shared inbox helpers: crew lookup + viewer identity. Returns the
+     name resolver, recipient resolver, and the viewer's id/department. */
+  /* Shared inbox context. `asMemberId` lets the GM view the inbox as a
+     specific crew member (the mailbox filter): visibility/read/delete all
+     resolve from that member's perspective, while `isGM` stays true so
+     write controls remain gated off in the GM view. Without it: a player
+     views as their bound member; the GM (no override) sees everything. */
+  static #inboxContext(asMemberId = null) {
     const crew = loadCollection("crew");
     const byId = new Map(crew.map(m => [m.id, {
       name: m.data?.name ?? m.id,
       department: m.data?.department ?? null
     }]));
-
-    const nameOf = (id) => byId.get(id)?.name ?? id; // dept names pass through
+    const nameOf = (id) => byId.get(id)?.name ?? id;          // dept names pass through
     const resolveRecipients = (to) =>
       (Array.isArray(to) ? to : []).map(r => ({ id: r, label: nameOf(r) }));
-
     const isGM = game.user.isGM;
-    const viewerId = isGM ? null : boundMemberId();
-    const viewerDept = viewerId ? (byId.get(viewerId)?.department ?? null) : null;
 
-    // Decide visibility + bucket for a message.
-    const decorate = (m) => {
-      const toList = Array.isArray(m.to) ? m.to : [];
-      const directTo = viewerId && toList.includes(viewerId);
-      const deptTo = viewerDept && toList.includes(viewerDept);
-      const isRecipient = isGM || directTo || deptTo;
-      const isSender = isGM ? false : (m.from === viewerId);
-      const read = Array.isArray(m.read) ? m.read : [];
-      const isUnread = viewerId ? !read.includes(viewerId) : false;
-      return {
-        ...m,
+    // Identity we render the mailbox AS.
+    let viewerId, viewerDept, filteredAs;
+    if (isGM && asMemberId) {
+      viewerId = asMemberId;                                  // GM impersonating a mailbox
+      viewerDept = byId.get(asMemberId)?.department ?? null;
+      filteredAs = byId.get(asMemberId)?.name ?? asMemberId;
+    } else {
+      viewerId = isGM ? null : boundMemberId();               // GM=all, player=bound
+      viewerDept = viewerId ? (byId.get(viewerId)?.department ?? null) : null;
+      filteredAs = null;
+    }
+    // `seeAll` is the GM admin pass-through (all threads); only when the GM
+    // is NOT filtering to a specific member.
+    const seeAll = isGM && !asMemberId;
+    return { byId, nameOf, resolveRecipients, isGM, viewerId, viewerDept, seeAll, filteredAs };
+  }
+
+  /* Whether `m` is visible in the current context (GM admin sees all;
+     otherwise recipient, department, or sender from the viewed identity). */
+  static #msgVisible(m, ctx) {
+    if (ctx.seeAll) return true;
+    const toList = Array.isArray(m.to) ? m.to : [];
+    if (ctx.viewerId && toList.includes(ctx.viewerId)) return true;        // direct
+    if (ctx.viewerDept && toList.includes(ctx.viewerDept)) return true;    // department
+    return m.from === ctx.viewerId;                                        // sender
+  }
+
+  /* Build inbox render data as a list of THREADS for the current viewer.
+     Messages live on the inbox screen JSON as `messages: [...]`; thread
+     read-state lives in `threads: { "<threadId>": { read: [memberId] } }`.
+     A thread row aggregates the viewer's visible messages sharing a
+     threadId: subject (from the root), participant names, newest visible
+     wt, message count, and unread = the viewer is NOT in threads.read.
+     Clicking a row navigates to inbox/thread/<threadId>. */
+  static #prepInbox(screen, screenId, asMemberId = null) {
+    const messages = Array.isArray(screen.messages) ? screen.messages : [];
+    const threadsMeta = (screen.threads && typeof screen.threads === "object") ? screen.threads : {};
+    const ctx = TerminalApp.#inboxContext(asMemberId);
+
+    // Group the viewer's visible messages by threadId.
+    const groups = new Map();
+    for (const m of messages) {
+      if (!TerminalApp.#msgVisible(m, ctx)) continue;
+      const tid = m.threadId ?? m.id;     // legacy messages: own id is the thread
+      if (!groups.has(tid)) groups.set(tid, []);
+      groups.get(tid).push(m);
+    }
+
+    const threads = [];
+    for (const [tid, msgs] of groups) {
+      // Root = the message whose id is the threadId, else earliest by wt.
+      const root = msgs.find(m => m.id === tid)
+        ?? [...msgs].sort((a, b) => (a.wt ?? Infinity) - (b.wt ?? Infinity))[0];
+      const newestWt = msgs.reduce((mx, m) => Math.max(mx, m.wt ?? -Infinity), -Infinity);
+
+      // Participants = union of all from + to across visible messages,
+      // resolved to names (departments pass through), minus duplicates.
+      const ids = new Set();
+      for (const m of msgs) {
+        if (m.from) ids.add(m.from);
+        for (const r of (Array.isArray(m.to) ? m.to : [])) ids.add(r);
+      }
+      const participants = [...ids].map(id => ctx.nameOf(id));
+
+      const read = Array.isArray(threadsMeta[tid]?.read) ? threadsMeta[tid].read : [];
+      const unread = ctx.viewerId ? !read.includes(ctx.viewerId) : false;
+      const deleted = Array.isArray(threadsMeta[tid]?.deleted) ? threadsMeta[tid].deleted : [];
+      // GM view ignores per-user delete (admin sees everything).
+      const isTrashed = ctx.viewerId ? deleted.includes(ctx.viewerId) : false;
+
+      threads.push({
+        threadId: tid,
         screenId,
-        fromLabel: nameOf(m.from),
-        toLabels: resolveRecipients(m.to),
-        replySubject: /^re:/i.test(m.subject ?? "") ? m.subject : `Re: ${m.subject ?? ""}`,
-        isRecipient,
-        isSender,
-        unread: isUnread
-      };
-    };
+        subject: root?.subject ?? "(no subject)",
+        participants,
+        participantLine: participants.join(", "),
+        count: msgs.length,
+        wt: Number.isFinite(newestWt) ? newestWt : null,
+        time: Number.isFinite(newestWt) ? formatWorldTime(newestWt) : "",
+        unread,
+        isTrashed
+      });
+    }
 
-    const decorated = messages.map(decorate);
+    // Newest-active thread first.
+    threads.sort((a, b) => (b.wt ?? -Infinity) - (a.wt ?? -Infinity));
+    // Split active vs trashed (trashed only ever true for a bound viewer).
+    const active = threads.filter(t => !t.isTrashed);
+    const trashed = threads.filter(t => t.isTrashed);
+    const unreadCount = active.filter(t => t.unread).length;
 
-    // Inbox: received (recipient). Sent: sent by viewer. GM: all in inbox.
-    const inboxMsgs = decorated.filter(m => m.isRecipient);
-    const sentMsgs = isGM
-      ? decorated.filter(m => false)            // GM "sent" not meaningful; compose covers it
-      : decorated.filter(m => m.isSender);
-
-    // Newest first (messages carry a sortable time? fall back to array order).
-    // We keep authored order reversed so latest-appended shows first.
-    inboxMsgs.reverse();
-    sentMsgs.reverse();
-
-    const unreadCount = inboxMsgs.filter(m => m.unread).length;
+    // GM mailbox filter: a crew dropdown so the GM can view any member's
+    // mailbox. Only built for the GM; the selected member (if any) is
+    // flagged so the template can mark it active.
+    let filterCrew = null;
+    if (ctx.isGM) {
+      filterCrew = [...ctx.byId.entries()]
+        .map(([id, m]) => ({ id, name: m.name, selected: id === asMemberId }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
 
     return {
-      isGM,
+      isGM: ctx.isGM,
       screenId,
-      hasBinding: isGM || !!viewerId,
-      canCompose: isGM || !!viewerId,
-      inbox: inboxMsgs,
-      sent: sentMsgs,
+      hasBinding: ctx.isGM || !!ctx.viewerId,
+      canCompose: ctx.isGM || !!ctx.viewerId,
+      threads: active,                // back-compat: the visible (non-trashed) list
+      trashed,
+      trashCount: trashed.length,
+      hasTrash: trashed.length > 0,
       unreadCount,
-      showSent: !isGM   // GM doesn't get a personal Sent box
+      // GM filter
+      filterCrew,
+      filteredAs: ctx.filteredAs,     // name of the member being viewed, or null
+      filterMemberId: asMemberId
     };
   }
+
+  /* Build the thread detail view: every message in `threadId` the viewer
+     can see, oldest-first (reading order). Subject comes from the root.
+     reply defaults are computed per-message in the template via data
+     attributes; the thread carries the participant set for the composer. */
+  static #prepThread(screen, threadId, screenId, asMemberId = null) {
+    const messages = Array.isArray(screen.messages) ? screen.messages : [];
+    const ctx = TerminalApp.#inboxContext(asMemberId);
+
+    const msgs = messages
+      .filter(m => (m.threadId ?? m.id) === threadId && TerminalApp.#msgVisible(m, ctx))
+      .map(m => ({
+        ...m,
+        screenId,
+        threadId,
+        wt: Number.isFinite(m.wt) ? m.wt : null,
+        time: Number.isFinite(m.wt) ? formatWorldTime(m.wt) : (m.time ?? ""),
+        fromLabel: ctx.nameOf(m.from),
+        fromId: m.from,
+        toLabels: ctx.resolveRecipients(m.to),
+        // Reply default: this message's participants (from + to) minus the
+        // viewer. Passed to the composer as a comma list of ids.
+        replyToIds: [m.from, ...(Array.isArray(m.to) ? m.to : [])]
+          .filter(x => x && x !== ctx.viewerId)
+      }))
+      .sort((a, b) => (a.wt ?? Infinity) - (b.wt ?? Infinity));   // oldest-first
+
+    const root = msgs.find(m => m.id === threadId) ?? msgs[0] ?? null;
+    const subject = root?.subject ?? "(no subject)";
+
+    // The newest visible message drives the default reply target + the
+    // thread reply button's prefill.
+    const newest = msgs[msgs.length - 1] ?? null;
+    const replyToIds = newest ? newest.replyToIds : [];
+
+    return {
+      screenId,
+      threadId,
+      subject,
+      messages: msgs,
+      countLabel: `${msgs.length} message${msgs.length === 1 ? "" : "s"}`,
+      empty: msgs.length === 0,
+      canCompose: ctx.isGM || !!ctx.viewerId,
+      replyToCsv: replyToIds.join(","),
+      isGM: ctx.isGM,
+      filteredAs: ctx.filteredAs
+    };
+  }
+
 
   /* Group the screen's requests array into the declared status-sections
      (same section model as the mission board), date descending within
@@ -662,42 +1025,156 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     return { groups };
   }
 
-  /* Number of liker names shown before collapsing to "and X others". */
-  static LIKE_NAMES_SHOWN = 3;
+  /* Number of reactor names shown in a tooltip before "+ X more". */
+  static REACTION_NAMES_SHOWN = 12;
 
-  /* Compose a human like-line from an array of names:
-       []                      -> ""             (no like line)
-       [A]                     -> "A"
-       [A,B]                   -> "A and B"
-       [A,B,C]                 -> "A, B and C"
-       [A,B,C,D]               -> "A, B, C and 1 other"
-       [A,B,C,D,E]             -> "A, B, C and 2 others"
-     Shows up to LIKE_NAMES_SHOWN names; remainder -> "and X other(s)". */
-  static #likeLine(likes) {
-    const names = Array.isArray(likes) ? likes.filter(Boolean) : [];
-    if (!names.length) return "";
-    const N = TerminalApp.LIKE_NAMES_SHOWN;
-    const shown = names.slice(0, N);
-    const others = names.length - shown.length;
+  /* Reactions are stored as a single map keyed by crew member ID:
+       { "byas": "up", "markov": "down", ... }
+     One entry per member enforces "like XOR dislike" structurally, and id
+     keys survive nickname/name changes. This derives the render data from
+     that map (plus back-compat with the old `likes` name-array and the
+     interim name-keyed `reactions` map — see #resolveReactor).
 
-    if (others > 0) {
-      return `${shown.join(", ")} and ${others} other${others === 1 ? "" : "s"}`;
+     Returns:
+       up / down            : counts
+       upNames / downNames  : resolved display names (for hover tooltips)
+       upTip / downTip      : pre-joined tooltip strings (truncated)
+       mineUp / mineDown    : whether the current viewer holds that reaction
+     `viewerId` is the current user's bound member id (null for the GM,
+     whose reaction identity is chosen per-click). */
+  static #reactionData(post, viewerId) {
+    // Normalize source into an id/key -> dir map.
+    let map = {};
+    if (post.reactions && typeof post.reactions === "object") {
+      map = post.reactions;
+    } else if (Array.isArray(post.likes)) {
+      for (const n of post.likes) if (n) map[n] = "up";   // legacy name-array -> up
     }
-    // others <= 0: join all shown with commas + "and" before the last.
-    if (shown.length === 1) return shown[0];
-    return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+
+    // Build a crew id -> display(nickname||name) lookup once.
+    const crew = loadCollection("crew");
+    const display = (key) => {
+      const m = crew.find(c => c.id === key);
+      if (m) return m.data?.nickname ?? m.data?.name ?? key;
+      return key;   // legacy/name-keyed entries: key is already a name
+    };
+
+    const upNames = [];
+    const downNames = [];
+    for (const [key, dir] of Object.entries(map)) {
+      if (dir === "up") upNames.push(display(key));
+      else if (dir === "down") downNames.push(display(key));
+    }
+
+    const tip = (names) => {
+      if (!names.length) return "";
+      const N = TerminalApp.REACTION_NAMES_SHOWN;
+      if (names.length <= N) return names.join(", ");
+      return `${names.slice(0, N).join(", ")} + ${names.length - N} more`;
+    };
+
+    const mineDir = viewerId ? (map[viewerId] ?? null) : null;
+    return {
+      up: upNames.length,
+      down: downNames.length,
+      upNames,
+      downNames,
+      upTip: tip(upNames),
+      downTip: tip(downNames),
+      mineUp: mineDir === "up",
+      mineDown: mineDir === "down"
+    };
   }
 
-  /* Build feed render data: per-post composed like-line + like count. */
+  /* Build feed render data:
+       - format each post/reply's display time from its stored sortable
+         `wt` (worldTime); fall back to a legacy `time` string if present.
+       - sort newest-first by `wt`, with pinned posts floated to the top.
+       - partition into `recent` and `archived` (older than feedArchiveDays
+         in-world days); pinned posts are never archived.
+       - per-post / per-reply capability flags drive the owner menu:
+           canEdit/canDelete = GM, or the item's author (bound member).
+           canPin            = per feedPinAuthority setting.
+     Replies may carry a stable `id`; legacy replies fall back to index. */
   static #prepFeed(screen, screenId) {
     const posts = Array.isArray(screen.posts) ? screen.posts : [];
-    const out = posts.map(p => ({
-      ...p,
-      screenId,
-      likeLine: TerminalApp.#likeLine(p.likes),
-      likeCount: Array.isArray(p.likes) ? p.likes.length : 0
-    }));
-    return { posts: out };
+    const isGM = game.user.isGM;
+    const selfId = isGM ? null : boundMemberId();
+    const mine = (authorId) => isGM || (!!selfId && authorId === selfId);
+    // The viewer's bound member id (for highlighting their own reaction).
+    // Null for the GM (no fixed reaction identity; chosen per-click).
+    const viewerId = selfId;
+
+    const decorate = (p) => {
+      const wt = Number.isFinite(p.wt) ? p.wt : null;
+      const reactions = TerminalApp.#reactionData(p, viewerId);
+      return {
+        ...p,
+        screenId,
+        wt,
+        time: wt != null ? formatWorldTime(wt) : (p.time ?? ""),
+        pinned: !!p.pinned,
+        reactions,                          // { up, down, upNames, downNames, upTip, downTip, mine }
+        canEdit: mine(p.authorId),
+        canDelete: mine(p.authorId),
+        canPin: canPinOrNotice(game.user, p.authorId),
+        hasMenu: mine(p.authorId) || canPinOrNotice(game.user, p.authorId),
+        replies: (Array.isArray(p.replies) ? p.replies : []).map((r, i) => {
+          const rwt = Number.isFinite(r.wt) ? r.wt : null;
+          return {
+            ...r,
+            replyId: r.id ?? null,
+            replyIndex: i,
+            time: rwt != null ? formatWorldTime(rwt) : (r.time ?? ""),
+            canEdit: mine(r.authorId),
+            canDelete: mine(r.authorId),
+            hasMenu: mine(r.authorId)
+          };
+        })
+      };
+    };
+
+    const decorated = posts.map(decorate);
+
+    // Sort: pinned first, then newest-first by wt. Posts without a wt
+    // (shouldn't happen on fresh data) sort oldest.
+    const byRecency = (a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (b.wt ?? -Infinity) - (a.wt ?? -Infinity);
+    };
+    decorated.sort(byRecency);
+
+    // Archive partition. feedArchiveDays = 0 disables archiving.
+    let archiveDays = 7;
+    try { archiveDays = Number(game.settings.get(MODULE_ID, "feedArchiveDays")) ?? 7; } catch { /* default */ }
+
+    let recent = decorated;
+    let archived = [];
+    const now = terminalWorldTime();
+    // Fail-safe: if the world clock reads 0 (calendar not initialized) or is
+    // somehow before the newest post, "now" is unreliable — don't hide
+    // anything. Archiving only kicks in once there's a sane clock ahead of
+    // the content.
+    const newestWt = decorated.reduce((mx, p) => Math.max(mx, p.wt ?? -Infinity), -Infinity);
+    const clockUsable = now > 0 && now >= newestWt;
+    if (archiveDays > 0 && clockUsable) {
+      const cutoff = now - archiveDays * secondsPerDay();
+      recent = [];
+      for (const p of decorated) {
+        // Pinned posts never archive; posts with no wt stay visible.
+        if (p.pinned || p.wt == null || p.wt >= cutoff) recent.push(p);
+        else archived.push(p);
+      }
+    }
+
+    return {
+      posts: recent,            // back-compat: existing template iterates feed.posts
+      recent,
+      archived,
+      hasArchive: archived.length > 0,
+      archiveCount: archived.length,
+      screenId
+    };
   }
 
   /* Build black-box render data from a blackbox screen.
@@ -1062,6 +1539,23 @@ Hooks.once("init", () => {
     name: "Home Screen ID",
     hint: "The screen id the terminal opens to.",
     scope: "world", config: true, type: String, default: "main"
+  });
+
+  /* ---- Crew feed settings ---- */
+  game.settings.register(MODULE_ID, "feedArchiveDays", {
+    name: "Feed: archive after (in-world days)",
+    hint: "Posts older than this many in-world days move into a collapsible Archive section. Pinned posts are never archived. 0 disables archiving (all posts shown).",
+    scope: "world", config: true, type: Number, default: 7
+  });
+  game.settings.register(MODULE_ID, "feedPinAuthority", {
+    name: "Feed: who can pin / flag as Notice",
+    hint: "Which users may pin posts and flag posts as Notices.",
+    scope: "world", config: true, type: String, default: "gm",
+    choices: {
+      gm: "GM only",
+      authored: "GM + post author (anyone, on their own posts)",
+      all: "GM + all players"
+    }
   });
 });
 

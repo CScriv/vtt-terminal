@@ -1,5 +1,9 @@
 # Terminal — Stage 4 (intranet): crew feed
 
+> **Superseded — see `docs/feed.md`.** This stage note predates the write layer
+> (post / like / reply) and describes those as "not built yet." `docs/feed.md`
+> is the current, complete reference. Kept here for development history only.
+
 Standalone screen, render "feed". One journal holds the whole posts array (posts
 are lightweight, numerous, never individually navigated — so NOT a collection).
 

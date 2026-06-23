@@ -37,16 +37,40 @@
   padding: 16px 18px;   /* breathing room inside the themed frame (matches .term-body) */
 }
 
-/* Let the message group absorb leftover height; textarea fills it. */
+/* Form controls fill the column width. In a flex column the cross axis
+   is horizontal; a <textarea> carries an intrinsic width from its `cols`
+   attribute (~20 chars) and won't fill on its own, which collapses it to
+   a narrow box. width:100% + border-box forces every control to span the
+   content area. min-width:0 lets them shrink with the window too. */
+.terminal-compose .form-group {
+  display: flex;
+  flex-direction: column;
+}
+.terminal-compose .compose-grid input[type="text"],
+.terminal-compose .compose-grid select,
+.terminal-compose .compose-grid textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Let the message group absorb leftover height; textarea fills it.
+   width:100% + min-width:0 stop the nested flex column from collapsing to
+   the textarea's intrinsic (cols-based) width on the cross axis. */
 .terminal-compose .compose-body-group {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
 }
 .terminal-compose .compose-body-group textarea {
   flex: 1 1 auto;
-  resize: none;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: vertical;     /* let the user drag taller if they want */
   min-height: 6rem;
 }
 
@@ -128,4 +152,37 @@
 }
 .terminal-compose .compose-send:hover {
   filter: brightness(1.25);
+}
+
+/* ---- Compose Post (crew feed) additions ----------------------
+   The post window reuses the .terminal-compose layout above; these
+   cover only the post-specific controls. */
+
+/* Notice checkbox row: checkbox + label + the styled "Notice" pill. */
+.terminal-compose .post-notice-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+/* Reuse the feed's .post-notice pill look inline in the checkbox label.
+   The feed defines .me-terminal .post-notice; restate the essentials here
+   so it reads as a pill inside the compose window regardless of theme. */
+.terminal-compose .post-notice-check .post-notice {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid currentColor;
+  padding: 0 0.35rem;
+  opacity: 0.85;
+}
+
+/* GM "— custom —" free author input wrapper. */
+.terminal-compose .post-author-custom {
+  margin-top: 0.4rem;
+}
+
+.terminal-compose .post-role-inline,
+.terminal-compose .from-fixed .post-role-inline {
+  opacity: 0.7;
 }

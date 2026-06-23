@@ -801,13 +801,8 @@
    provides the scrollbar. We do NOT change min-height (changing it
    collapsed the layout previously). */
 .terminal-app .terminal-screen {
-  /* Both axes MUST be visible. If only one axis is `visible` while the
-     other is `hidden`, CSS coerces the visible axis to `auto`, turning
-     this wrapper into its own scroll container — it then absorbs the
-     overflow and .window-content (which has the real, bounded scrollbar)
-     never receives anything to scroll. Keeping both visible lets content
-     spill up to .window-content, which provides the scrollbar. */
-  overflow: visible;
+  overflow-y: visible;
+  overflow-x: hidden;
 }
 .terminal-app .window-content {
   overflow-y: auto;
@@ -827,16 +822,52 @@
   border-top: 1px solid var(--n7-line);
   font-size: 11px;
 }
-.me-terminal .post-like {
+/* ---- Reaction counters (▲ like / ▾ dislike) ------------------
+   Each counter is a clickable inline span; the reactor names live in a
+   hidden .react-tip revealed on hover, styled like the owner menu so it
+   reads as a terminal readout (monochrome, dark panel). */
+.me-terminal .react {
+  position: relative;
+  cursor: pointer;
   color: var(--n7-grey);
   font-weight: bold;
   letter-spacing: 1px;
+  user-select: none;
 }
-.me-terminal .like-arrow { color: var(--n7-red-lt); }
-.me-terminal .post-likers {
-  color: var(--n7-grey-d);
-  letter-spacing: 1px;
+.me-terminal .react:hover { color: var(--n7-text); }
+.me-terminal .react-arrow { color: var(--n7-grey-d); }
+.me-terminal .react-up:hover .react-arrow { color: var(--n7-red-lt); }
+.me-terminal .react-down:hover .react-arrow { color: var(--n7-red-lt); }
+
+/* The viewer's own active reaction is highlighted. */
+.me-terminal .react-mine { color: #fff; }
+.me-terminal .react-up.react-mine .react-arrow { color: var(--n7-red-lt); }
+.me-terminal .react-down.react-mine .react-arrow { color: #4fa3e0; }
+
+/* Hover tooltip: the reactor roster. Absolutely positioned above the
+   counter so it isn't clipped by the post's content overflow. */
+.me-terminal .react-tip {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  z-index: 30;
+  min-width: 120px;
+  max-width: 260px;
+  padding: 6px 9px;
+  background: var(--n7-panel);
+  border: 1px solid var(--n7-line);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  color: var(--n7-text);
+  font-weight: normal;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+  white-space: normal;
 }
+.me-terminal .react:hover .react-tip { display: block; }
+
 .me-terminal .reply-head {
   display: flex;
   align-items: baseline;
@@ -883,9 +914,7 @@
   text-transform: uppercase;
 }
 
-/* ---- Feed: clickable like + reply controls (stage 5) ---- */
-.terminal-app .nav-like { cursor: pointer; }
-.terminal-app .nav-like:hover { color: var(--n7-red-lt); }
+/* ---- Feed: clickable reply control ---- */
 .terminal-app .post-reply-btn {
   cursor: pointer;
   margin-left: auto;
@@ -895,6 +924,104 @@
 }
 .terminal-app .post-reply-btn:hover { color: var(--n7-red-lt); }
 
+/* ---- Feed owner menu (···) -----------------------------------
+   The post/reply header carries a "···" trigger that reveals a small
+   dropdown of owner actions (Edit / Pin / Delete). The menu wrapper is
+   relatively positioned; .open reveals the absolutely-positioned items. */
+.me-terminal .post-menu,
+.me-terminal .reply-menu {
+  position: relative;
+  display: inline-block;
+  margin-left: auto;        /* push the trigger to the right of the header */
+}
+.me-terminal .reply-menu { margin-left: 8px; }
+
+.me-terminal .post-menu-trigger,
+.me-terminal .reply-menu-trigger {
+  cursor: pointer;
+  color: var(--n7-grey-d);
+  font-weight: bold;
+  letter-spacing: 2px;
+  padding: 0 4px;
+  user-select: none;
+}
+.me-terminal .post-menu-trigger:hover,
+.me-terminal .reply-menu-trigger:hover,
+.me-terminal .post-menu.open .post-menu-trigger,
+.me-terminal .reply-menu.open .reply-menu-trigger { color: var(--n7-red-lt); }
+
+.me-terminal .post-menu-items,
+.me-terminal .reply-menu-items {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  min-width: 96px;
+  background: var(--n7-panel);
+  border: 1px solid var(--n7-line);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.me-terminal .post-menu.open .post-menu-items,
+.me-terminal .reply-menu.open .reply-menu-items { display: block; }
+
+.me-terminal .post-menu-item,
+.me-terminal .reply-menu-item {
+  display: block;
+  cursor: pointer;
+  padding: 5px 12px;
+  color: var(--n7-text);
+  white-space: nowrap;
+  letter-spacing: 1px;
+}
+.me-terminal .post-menu-item:hover,
+.me-terminal .reply-menu-item:hover { background: var(--n7-line); color: #fff; }
+.me-terminal .post-menu-danger:hover,
+.me-terminal .reply-menu-danger:hover { background: var(--n7-red); color: #fff; }
+
+/* Pinned posts: a left accent + a small "Pinned" tag in the header. */
+.me-terminal .post-pinned {
+  border-left: 3px solid var(--n7-red-lt);
+}
+.me-terminal .post-pin-tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--n7-red-lt);
+  margin-right: 8px;
+}
+
+/* "(edited)" marker: quiet, after the timestamp. */
+.me-terminal .post-edited,
+.me-terminal .reply-edited {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--n7-grey-d);
+  margin-left: 6px;
+}
+
+/* ---- Feed archive section ------------------------------------ */
+.me-terminal .feed-archive {
+  margin-top: 18px;
+  border-top: 1px solid var(--n7-line);
+  padding-top: 8px;
+}
+.me-terminal .feed-archive > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--n7-grey);
+  letter-spacing: 1px;
+  padding: 4px 0;
+}
+.me-terminal .feed-archive > summary::-webkit-details-marker { display: none; }
+.me-terminal .feed-archive > summary::before {
+  content: "▸ ";
+  color: var(--n7-grey-d);
+}
+.me-terminal .feed-archive[open] > summary::before { content: "▾ "; }
+.me-terminal .feed-archive > summary:hover { color: var(--n7-red-lt); }
+.me-terminal .feed-archive-body { margin-top: 8px; opacity: 0.88; }
+
 /* ---- Player bindings UI ---- */
 .bindings-table { width: 100%; border-collapse: collapse; }
 .bindings-table th, .bindings-table td { padding: 6px 8px; text-align: left; }
@@ -903,6 +1030,22 @@
 /* ---- Inbox ---- */
 .me-terminal .inbox-empty { color: var(--n7-grey-d); font-style: italic; }
 .me-terminal .inbox-unread-count { color: var(--n7-red-lt); font-size: 11px; }
+
+/* GM mailbox filter: a "viewing as" crew dropdown above the thread list. */
+.me-terminal .inbox-filter {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 10px;
+}
+.me-terminal .inbox-filter-label {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--n7-grey-d);
+}
+.me-terminal .inbox-filter-select {
+  background: var(--n7-panel); color: var(--n7-text);
+  border: 1px solid var(--n7-line); padding: 2px 8px;
+  letter-spacing: 1px;
+}
+.me-terminal .inbox-filter-select:hover { border-color: var(--n7-red-lt); }
 .me-terminal .msg {
   border: 1px solid var(--n7-line);
   border-left: 3px solid var(--n7-grey-d);
@@ -923,6 +1066,100 @@
 .me-terminal .msg-meta { font-size: 11px; color: var(--n7-grey); margin: 6px 0; text-transform: uppercase; letter-spacing: 1px; }
 .me-terminal .msg-body { margin-top: 6px; }
 .me-terminal .msg-body p { margin: 0; }
+
+/* ---- Inbox: thread list ---- */
+.me-terminal .thread-list { margin: 8px 0; }
+.me-terminal .thread-row {
+  display: flex; align-items: baseline; gap: 10px;
+  border: 1px solid var(--n7-line);
+  border-left: 3px solid var(--n7-grey-d);
+  background: var(--n7-panel);
+  margin: 6px 0; padding: 8px 12px;
+  cursor: pointer;
+}
+.me-terminal .thread-row:hover { border-left-color: var(--n7-red-lt); }
+.me-terminal .thread-unread { border-left-color: var(--n7-red-lt); }
+.me-terminal .thread-dot { color: var(--n7-red-lt); font-size: 10px; width: 10px; }
+.me-terminal .thread-dot-read { color: var(--n7-grey-d); }
+.me-terminal .thread-row-subject { font-weight: bold; color: #fff; letter-spacing: 1px; }
+.me-terminal .thread-unread .thread-row-subject { color: #fff; }
+.me-terminal .thread-row-participants { flex: 1; color: var(--n7-grey); font-size: 12px; }
+.me-terminal .thread-row-count {
+  color: var(--n7-grey-d); font-size: 11px;
+  border: 1px solid var(--n7-line); padding: 0 5px; border-radius: 2px;
+}
+.me-terminal .thread-row-time { color: var(--n7-grey-d); font-size: 11px; letter-spacing: 1px; }
+
+/* Per-row delete (to trash) / restore controls. Muted; red on hover for
+   delete. stopPropagation in the handler prevents row navigation. */
+.me-terminal .thread-del {
+  cursor: pointer; color: var(--n7-grey-d);
+  font-weight: bold; padding: 0 4px; margin-left: 4px;
+  user-select: none;
+}
+.me-terminal .thread-del:hover { color: var(--n7-red); }
+.me-terminal .thread-restore:hover { color: var(--n7-red-lt); }
+
+/* Trashed rows read dimmer than active mail. */
+.me-terminal .inbox-trash { margin-top: 14px; }
+.me-terminal .thread-trashed { opacity: 0.7; }
+.me-terminal .thread-trashed .thread-row-subject { color: var(--n7-grey); }
+
+/* ---- Thread detail screen ---- */
+/* Sub-header treatment: when viewing a thread, the top header carries a
+   breadcrumb ("INBOX › subject" + THREAD tag) and gets a distinct accent
+   so the chrome itself signals you've drilled into a thread. */
+.me-terminal .term-header-sub p { border-left: 3px solid var(--n7-red-lt); padding-left: 8px; }
+
+/* Context bar above the thread: back affordance + THREAD marker. */
+.me-terminal .thread-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 10px;
+}
+.me-terminal .thread-back-link {
+  cursor: pointer; color: var(--n7-grey);
+  letter-spacing: 1px; font-weight: bold;
+}
+.me-terminal .thread-back-link:hover { color: var(--n7-red-lt); }
+.me-terminal .thread-bar-label {
+  margin-left: auto;
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--n7-grey-d);
+  border: 1px solid var(--n7-line); padding: 1px 8px;
+}
+
+.me-terminal .thread-head {
+  display: flex; align-items: baseline; gap: 12px;
+  border-bottom: 2px solid var(--n7-red); 
+  padding-bottom: 8px; margin-bottom: 14px;
+}
+.me-terminal .thread-subject {
+  font-size: 17px; font-weight: bold; color: #fff; letter-spacing: 1px;
+}
+.me-terminal .thread-count-label {
+  margin-left: auto; color: var(--n7-grey-d);
+  font-size: 11px; letter-spacing: 1px;
+}
+.me-terminal .thread-messages { display: flex; flex-direction: column; gap: 12px; }
+.me-terminal .thread-msg {
+  border: 1px solid var(--n7-line);
+  border-left: 3px solid var(--n7-grey-d);
+  background: var(--n7-panel);
+  padding: 8px 12px;
+}
+.me-terminal .thread-msg-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 6px; flex-wrap: wrap;
+}
+.me-terminal .thread-msg-head .msg-to { color: var(--n7-grey); font-size: 12px; }
+.me-terminal .thread-msg-head .msg-time { margin-left: auto; }
+.me-terminal .thread-msg-body p { margin: 0; }
+.me-terminal .thread-reply-trigger { margin-top: 14px; }
+
+/* Reply mode: locked subject reads as fixed context, not an input. */
+.me-terminal .subject-locked, .terminal-compose .subject-locked {
+  opacity: 0.7; cursor: default;
+}
 
 /* ---- Inbox compose: recipient checkbox list ---- */
 .to-filter { width: 100%; margin-bottom: 4px; }
@@ -1009,3 +1246,7 @@
 .terminal-app .loc-link:hover { color: var(--n7-red-lt); }
 
 
+
+/* Crew-feed "post to feed" trigger: spacing below the prompt, above the
+   first post. Inherits link styling from .me-terminal a. */
+.me-terminal .feed-post-trigger { margin: 4px 0 14px; }

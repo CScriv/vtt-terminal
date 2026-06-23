@@ -1,0 +1,46 @@
+{{!--
+  compose-reply.hbs — "reply" / "edit reply" window for a crew-feed post.
+
+  Context (from ComposeReplyApp#_prepareContext):
+    isGM             GM gets an author dropdown (+ custom option)
+    isEdit           edit mode: body-only, author hidden
+    initialBody      pre-fill for edit mode
+    selfId/selfName  player's fixed crew identity (nickname-aware)
+    crew             [{ id, name, role }]  (sorted, GM dropdown)
+
+  Same conventions as compose-post.hbs. Post/save via data-action="post".
+--}}
+<form class="compose-form {{themeClass}}">
+<div class="compose-grid">
+
+  {{#unless isEdit}}
+  <div class="form-group">
+    <label class="term-prompt">&gt; REPLY AS</label>
+    {{#if isGM}}
+      <select name="authorMember" class="post-author-select">
+        {{#each crew}}
+          <option value="{{this.id}}">{{this.name}}{{#if this.role}} — {{this.role}}{{/if}}</option>
+        {{/each}}
+        <option value="__custom__">— custom —</option>
+      </select>
+      <div class="post-author-custom" style="display:none;">
+        <input type="text" name="authorCustom" placeholder="Author name" autocomplete="off">
+      </div>
+    {{else}}
+      <input type="hidden" name="authorMember" value="{{selfId}}">
+      <div class="from-fixed">{{selfName}}</div>
+    {{/if}}
+  </div>
+  {{/unless}}
+
+  <div class="form-group compose-body-group">
+    <label class="term-prompt">&gt; {{#if isEdit}}EDIT{{else}}COMMENT{{/if}}</label>
+    <textarea name="body" rows="4" placeholder="Write a reply…">{{initialBody}}</textarea>
+  </div>
+
+  <div class="compose-actions">
+    <button type="button" class="compose-send" data-action="post">[ {{#if isEdit}}SAVE{{else}}POST REPLY{{/if}} ]</button>
+  </div>
+
+</div>
+</form>

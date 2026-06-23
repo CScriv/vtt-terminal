@@ -51,6 +51,32 @@ export function resolveSelfAuthor() {
   };
 }
 
+/* Whether `user` may pin a post / flag it as a Notice, per the
+   `feedPinAuthority` world setting:
+     "gm"       -> GM only
+     "authored" -> GM, or a player acting on their OWN post (authorId
+                   matches their bound member; pass postAuthorId)
+     "all"      -> GM + any player
+   `postAuthorId` is only consulted for the "authored" mode; pass it when
+   the check is about a specific post (pin/notice-on-own). For the compose
+   window's "may I flag a NEW post as Notice?" check, "authored" should
+   resolve to true for any bound player (they're the author), so pass their
+   own bound id as postAuthorId, or omit for the non-post-specific case. */
+export function canPinOrNotice(user = game.user, postAuthorId = undefined) {
+  if (user?.isGM) return true;
+  let mode = "gm";
+  try { mode = game.settings.get("vtt-terminal", "feedPinAuthority") ?? "gm"; } catch { /* default */ }
+  if (mode === "all") return true;
+  if (mode === "authored") {
+    const bound = boundMemberId(user.id);
+    if (!bound) return false;
+    // Non-post-specific (compose new post): a bound player authors it, so allow.
+    if (postAuthorId === undefined) return true;
+    return postAuthorId === bound;
+  }
+  return false; // "gm"
+}
+
 /* ---- The binding UI ---- */
 
 class BindingConfig extends HandlebarsApplicationMixin(ApplicationV2) {

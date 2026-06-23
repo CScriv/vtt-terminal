@@ -72,6 +72,53 @@ export function terminalTimestamp() {
   return wallClock();
 }
 
+/* ---- Sortable in-world time (for the feed) -------------------
+   The feed stores a SORTABLE numeric timestamp and formats it for
+   display at render time (not write time), so posts can be sorted and
+   age-compared. The value is Foundry's native in-world clock,
+   game.time.worldTime (seconds; advanced only by the GM via Seasons &
+   Stars). This is purely in-world — never wall-clock. */
+
+/* Capture the current in-world time as a sortable number. */
+export function terminalWorldTime() {
+  const wt = game.time?.worldTime;
+  return Number.isFinite(wt) ? wt : 0;
+}
+
+/* Seconds per in-world day, from the active calendar when available
+   (handles non-24h calendars); falls back to 86400. Used for "last N
+   days" archive math. */
+export function secondsPerDay() {
+  try {
+    const cal = game.seasonsStars?.api?.getActiveCalendar?.();
+    const hpd = cal?.time?.hoursInDay ?? cal?.hoursInDay ?? 24;
+    const mph = cal?.time?.minutesInHour ?? cal?.minutesInHour ?? 60;
+    const spm = cal?.time?.secondsInMinute ?? cal?.secondsInMinute ?? 60;
+    const total = hpd * mph * spm;
+    return Number.isFinite(total) && total > 0 ? total : 86400;
+  } catch {
+    return 86400;
+  }
+}
+
+/* Format a stored worldTime number into the feed's display string,
+   via Seasons & Stars (worldTime -> date object -> "DD MMM: HHMM").
+   Falls back to a relative/raw rendering if S&S is unavailable. */
+export function formatWorldTime(wt) {
+  if (!Number.isFinite(wt)) return "";
+  try {
+    const ss = game.seasonsStars?.api;
+    if (ss?.worldTimeToDate) {
+      const date = ss.worldTimeToDate(wt);
+      const formatted = formatSSDate(date);
+      if (formatted) return formatted;
+    }
+  } catch (err) {
+    console.warn(`${MODULE_ID} | couldn't format worldTime, raw fallback:`, err);
+  }
+  return "";
+}
+
 /* Whether the in-game calendar is available (for diagnostics/UI). */
 export function hasInGameCalendar() {
   return !!game.seasonsStars?.api?.getCurrentDate;

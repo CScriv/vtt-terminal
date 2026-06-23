@@ -63,7 +63,7 @@
 
   <div class="form-group">
     <label class="term-prompt">&gt; SUBJECT</label>
-    <input type="text" name="subject" value="{{prefillSubject}}" autocomplete="off">
+    <input type="text" name="subject" value="{{prefillSubject}}" autocomplete="off"{{#if lockedSubject}} readonly class="subject-locked"{{/if}}>
   </div>
 
   <div class="form-group compose-body-group">

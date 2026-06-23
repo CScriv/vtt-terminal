@@ -1,39 +1,73 @@
 {
-  "render": "feed",
-  "title": "SSV MIDWAY SR-2 // CREW FEED",
-  "tag": "SASO",
-  "prompt": "SHIP NETWORK — RECENT ACTIVITY",
-  "posts": [
-    {
-      "id": "post-003",
-      "author": "Johanna Byas",
-      "authorId": "byas",
-      "role": "Ship Yeoman",
-      "time": "28 Oct — 0830",
-      "official": true,
-      "body": "A reminder to the crew: requisitions are for mission-critical equipment. The requisitions board is not a wishlist. Requests will be reviewed on the basis of operational need, and I will be applying that standard generously to myself and sparingly to everyone else. Thank you for your understanding.",
-      "likes": ["Voss", "Markov", "Matthews", "Sorka", "Domitus"],
-      "replies": [
-        { "author": "Noah Callaghan", "authorId": "callaghan", "time": "28 Oct — 0845", "body": "Noted. Reluctantly." }
-      ]
-    },
-    {
-      "id": "post-002",
-      "author": "James Markov",
-      "authorId": "markov",
-      "role": "Drive Engineer",
-      "time": "27 Oct — 1910",
-      "body": "Drive's running clean after the recalibration. Whoever tracked down that calibration kit, you have my thanks. She hasn't purred like this since we acquired her.",
-      "likes": ["Matthews", "Voss"]
-    },
-    {
-      "id": "post-001",
-      "author": "Juliso Ennidos",
-      "authorId": "ennidos-j",
-      "role": "Squad Member",
-      "time": "26 Oct — 2200",
-      "body": "Still no Cobra launcher in requisitions. I remain available to discuss.",
-      "likes": []
-    }
-  ]
+    "render": "feed",
+    "title": "SSV MIDWAY SR-2 // CREW FEED",
+    "tag": "SASO",
+    "prompt": "SHIP NETWORK — RECENT ACTIVITY",
+    "_note": "wt = Foundry game.time.worldTime (in-world seconds), the sortable timestamp; display formatted at render. Reactions are a single map keyed by CREW MEMBER ID with values 'up' (like) or 'down' (dislike) — one entry per member (like XOR dislike). Keys MUST be real crew collection ids; the tooltip resolves id -> nickname (or full name) at render, so an id with no matching crew member would show the raw id. Counts/tooltips derive from this map. Anchored to ref now=69009558720: post-003 (~12h, pinned+Notice) 4 up / 1 down; post-002 (~2d) 3 up / 1 down; post-001 (~4d) 1 up / 2 down; post-000 (~11d) 1 up, archived at default 7-day.",
+    "posts": [
+        {
+            "id": "post-003",
+            "author": "Johanna Byas",
+            "authorId": "byas",
+            "role": "Ship Yeoman",
+            "wt": 69009515520,
+            "pinned": true,
+            "official": true,
+            "body": "A reminder to the crew: requisitions are for mission-critical equipment. The requisitions board is not a wishlist. Requests will be reviewed on the basis of operational need, and I will be applying that standard generously to myself and sparingly to everyone else. Thank you for your understanding.",
+            "replies": [
+                {
+                    "id": "reply-seed01",
+                    "author": "Noah Callaghan",
+                    "authorId": "callaghan",
+                    "wt": 69009517020,
+                    "body": "Noted. Reluctantly."
+                }
+            ],
+            "reactions": {
+                "markov": "up",
+                "matthews": "up",
+                "domitus": "up",
+                "byas": "up",
+                "ennidos-j": "down"
+            }
+        },
+        {
+            "id": "post-002",
+            "author": "James Markov",
+            "authorId": "markov",
+            "role": "Drive Engineer",
+            "wt": 69009385920,
+            "body": "Drive's running clean after the recalibration. Whoever tracked down that calibration kit, you have my thanks. She hasn't purred like this since we acquired her.",
+            "reactions": {
+                "matthews": "up",
+                "domitus": "up",
+                "byas": "up",
+                "markov": "down"
+            }
+        },
+        {
+            "id": "post-001",
+            "author": "Juliso Ennidos",
+            "authorId": "ennidos-j",
+            "role": "Squad Member",
+            "wt": 69009213120,
+            "body": "Still no Cobra launcher in requisitions. I remain available to discuss.",
+            "reactions": {
+                "markov": "down",
+                "matthews": "up",
+                "domitus": "down"
+            }
+        },
+        {
+            "id": "post-000",
+            "author": "Tariv Domitus",
+            "authorId": "domitus",
+            "role": "Squad Member",
+            "wt": 69008608320,
+            "body": "Old comms check from the shakedown run. If you can read this, the relay's holding. Archiving for posterity.",
+            "reactions": {
+                "markov": "up"
+            }
+        }
+    ]
 }

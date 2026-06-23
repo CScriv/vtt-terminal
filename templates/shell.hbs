@@ -19,10 +19,15 @@
     </div>
 
   {{else}}
-    <div class="term-header">
+    <div class="term-header{{#if headerOverride}} term-header-sub{{/if}}">
       <p>
-        <span>{{screen.title}}</span>
-        {{#if screen.tag}}<span class="n7-tag">{{screen.tag}}</span>{{/if}}
+        {{#if headerOverride}}
+          <span>{{headerOverride.title}}</span>
+          {{#if headerOverride.tag}}<span class="n7-tag">{{headerOverride.tag}}</span>{{/if}}
+        {{else}}
+          <span>{{screen.title}}</span>
+          {{#if screen.tag}}<span class="n7-tag">{{screen.tag}}</span>{{/if}}
+        {{/if}}
       </p>
     </div>
 
