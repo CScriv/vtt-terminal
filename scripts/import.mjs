@@ -38,15 +38,19 @@ const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applicat
 
    Accepted batch shapes (a single paste / a single file):
 
-   A) ARRAY of members, each carrying its own id (and optionally its
-      own collection / enabled):
+   A) ARRAY of members, each carrying its own id at top level:
         [
           { "id": "matthews", "render": "dossier", "name": "...", ... },
           { "id": "markov",   "render": "dossier", "name": "...", ... }
         ]
-      The id can live at top level OR under a "_terminal" envelope:
+      The id can live at top level OR under a "_terminal" envelope. A
+      per-entry collection or enabled flag goes in "_terminal" (never as a
+      body field — a body-level "collection" is CONTENT, e.g. a screen
+      naming the set it lists):
         { "_terminal": { "id": "matthews", "collection": "crew",
           "enabled": true }, "render": "dossier", ... }
+      Without a per-entry collection, the form field / envelope default
+      applies to the whole batch.
 
    B) MAP of id -> member data:
         {
@@ -78,24 +82,33 @@ function parseBatch(raw, defaultCollection, { fallbackId = "" } = {}) {
   const splitControls = (member, fallbackId) => {
     const env = (member && typeof member._terminal === "object") ? member._terminal : {};
     const id = String(env.id ?? member.id ?? fallbackId ?? "").trim();
-    const collection = String(env.collection ?? member.collection ?? "").trim()
-      || defaultCollection;
+
+    // COLLECTION (the flag) comes ONLY from the _terminal envelope or the
+    // form/envelope default — NEVER from a body-level "collection" field.
+    // That body field is CONTENT: a roster/board/directory SCREEN carries
+    // "collection" to name the set it LISTS (e.g. the crew roster lists
+    // "crew"); it does not make the screen itself a member of that set.
+    // Promoting it to the flag would make the data layer treat the screen
+    // as a collection member, and deleting it would break the screen's
+    // own rendering. So we read env.collection only, and we leave any
+    // body-level "collection" untouched in the payload.
+    const collection = String(env.collection ?? "").trim() || defaultCollection;
+
     // enabled: explicit wins; default ON for an import (you're loading
     // content to use). Authors can ship "enabled": false to stage drafts.
-    const enabledRaw = env.enabled ?? member.enabled;
+    // Read only from the envelope so a body-level "enabled" (unlikely, but
+    // possible as content) isn't hijacked as a control.
+    const enabledRaw = env.enabled;
     const enabled = enabledRaw === undefined ? true : enabledRaw === true;
 
-    // Strip control keys so they don't pollute the stored payload. We
-    // keep "collection" OUT of the payload (it's a flag), but note that
-    // SCREEN payloads legitimately carry a "collection" field naming the
-    // set they list — those aren't members and shouldn't come through here.
+    // Strip control keys so they don't pollute the stored payload. Only
+    // the _terminal envelope and a top-level "id" are controls; "id" is
+    // stripped because the flag carries it and it isn't a render field.
+    // "collection" and "enabled" at body level are CONTENT (or absent) and
+    // are deliberately LEFT IN PLACE.
     const data = foundry.utils.deepClone(member);
     delete data._terminal;
     delete data.id;
-    delete data.enabled;
-    // Only strip a top-level collection when it matched a control use;
-    // for member payloads it's never meaningful, so always drop it.
-    delete data.collection;
 
     return { id, collection, enabled, data };
   };
