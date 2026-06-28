@@ -25,6 +25,7 @@ import "./config.mjs";
 import "./controls.mjs";
 import "./sockets.mjs";
 import "./bindings.mjs";
+import "./import.mjs";
 
 import { ComposeMessageApp } from "./compose.mjs";
 import { ComposePostApp } from "./compose-post.mjs";

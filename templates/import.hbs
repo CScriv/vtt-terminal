@@ -1,0 +1,48 @@
+{{!--
+  import.hbs — Terminal Bulk Import form.
+  Two ways in: paste a batch payload (+ collection) and Import, or drag
+  .json files onto the drop zone. Results land in the panel below.
+--}}
+<div class="terminal-import-body">
+  <p class="hint">
+    Load many collection members at once. Each entry becomes a flagged
+    journal, upserted by <strong>collection + id</strong> (re-importing an
+    id updates it instead of duplicating).
+  </p>
+
+  <div class="form-group">
+    <label>Collection</label>
+    <input type="text" name="collection" value="{{presetCollection}}"
+      list="terminal-collection-list"
+      placeholder="e.g. crew, missions, locations, datapads" />
+    <datalist id="terminal-collection-list">
+      {{#each collections}}<option value="{{this}}"></option>{{/each}}
+    </datalist>
+    <p class="hint">Default for entries that don't carry their own. An
+      envelope <code>{ "collection": "...", "members": [...] }</code> or a
+      per-entry <code>"_terminal": { "collection": "..." }</code> overrides this.</p>
+  </div>
+
+  <div class="form-group">
+    <div class="terminal-json-toolbar">
+      <button type="button" data-action="formatJson"><i class="fa-solid fa-wand-magic-sparkles"></i> Format / Validate</button>
+      <button type="button" data-action="clearJson"><i class="fa-solid fa-eraser"></i> Clear</button>
+    </div>
+    <textarea name="payload" rows="14" spellcheck="false" class="terminal-json"
+      placeholder='Array:   [ { "id": "matthews", "render": "dossier", ... }, ... ]
+Map:     { "matthews": { "render": "dossier", ... }, "markov": { ... } }
+Envelope:{ "collection": "crew", "members": [ ... ] }'></textarea>
+  </div>
+
+  <div class="terminal-dropzone">
+    <i class="fa-solid fa-cloud-arrow-up"></i>
+    <span>…or drag &amp; drop one or more <strong>.json</strong> files here</span>
+    <small>One file per member, or a file containing an array / map / envelope.</small>
+  </div>
+
+  <div class="terminal-import-results"></div>
+
+  <footer class="sheet-footer">
+    <button type="submit"><i class="fa-solid fa-file-import"></i> Import</button>
+  </footer>
+</div>
