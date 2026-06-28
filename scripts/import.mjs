@@ -72,27 +72,35 @@ const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applicat
    (used by file-drop to derive the id from the filename, so an untouched
    screen file like screen-inbox.json needs no edits to import).
    ------------------------------------------------------------- */
-function parseBatch(raw, defaultCollection, { fallbackId = "" } = {}) {
+function parseBatch(raw, defaultCollection, { fallbackId = "", fallbackCollection = "", forceNoCollection = false } = {}) {
   const out = [];
   const errors = [];
 
   // Pull id/collection/enabled overrides off a member, supporting both a
   // top-level form and a "_terminal" envelope. Returns the cleaned data
   // (envelope + control keys stripped) plus the resolved controls.
-  const splitControls = (member, fallbackId) => {
+  const splitControls = (member, fbId = fallbackId, fbCollection = fallbackCollection, force = forceNoCollection) => {
     const env = (member && typeof member._terminal === "object") ? member._terminal : {};
-    const id = String(env.id ?? member.id ?? fallbackId ?? "").trim();
+    const id = String(env.id ?? member.id ?? fbId ?? "").trim();
 
-    // COLLECTION (the flag) comes ONLY from the _terminal envelope or the
-    // form/envelope default — NEVER from a body-level "collection" field.
-    // That body field is CONTENT: a roster/board/directory SCREEN carries
-    // "collection" to name the set it LISTS (e.g. the crew roster lists
-    // "crew"); it does not make the screen itself a member of that set.
-    // Promoting it to the flag would make the data layer treat the screen
-    // as a collection member, and deleting it would break the screen's
-    // own rendering. So we read env.collection only, and we leave any
-    // body-level "collection" untouched in the payload.
-    const collection = String(env.collection ?? "").trim() || defaultCollection;
+    // COLLECTION (the flag) precedence, highest to lowest:
+    //   1. _terminal.collection  — explicit per-entry override (always wins)
+    //   2. forceNoCollection     — the "screen-" filename sentinel: assert
+    //                              "this is NOT a member", overriding the
+    //                              form default below
+    //   3. fbCollection          — filename prefix (per-file, e.g. "crew-")
+    //   4. defaultCollection     — the form field / envelope default
+    // The filename beats the form field because a single drop can mix
+    // files from different collections; the form value is the catch-all
+    // for files whose name doesn't encode one. Body-level "collection" is
+    // NEVER read here — it's content (a screen naming the set it lists),
+    // not a control, and is left untouched in the payload.
+    const envCollection = String(env.collection ?? "").trim();
+    let collection;
+    if (envCollection) collection = envCollection;          // 1: explicit wins
+    else if (force) collection = "";                        // 2: screen sentinel
+    else collection = String(fbCollection ?? "").trim()     // 3: filename prefix
+      || defaultCollection;                                 // 4: form default
 
     // enabled: explicit wins; default ON for an import (you're loading
     // content to use). Authors can ship "enabled": false to stage drafts.
@@ -129,7 +137,11 @@ function parseBatch(raw, defaultCollection, { fallbackId = "" } = {}) {
         errors.push(`Entry ${i + 1}: not an object.`);
         return;
       }
-      const rec = splitControls(member);
+      // Array entries each carry their own id; the filename (a single
+      // string) can't supply ids for many entries, so suppress both
+      // filename fallbacks here. Per-entry collection comes from
+      // _terminal.collection or the form/envelope default.
+      const rec = splitControls(member, "", "", false);
       if (!rec.id) { errors.push(`Entry ${i + 1}: no id (set "id" or "_terminal".id).`); return; }
       // collection is OPTIONAL: blank = a standalone screen (e.g. inbox).
       out.push(rec);
@@ -150,7 +162,10 @@ function parseBatch(raw, defaultCollection, { fallbackId = "" } = {}) {
       (body._terminal && typeof body._terminal === "object");
 
     if (isSinglePayload) {
-      const rec = splitControls(body, fallbackId);   // filename id, if any
+      // The one shape where the filename applies: a lone bare file like
+      // crew-byas.json. Prefix -> collection, remainder -> id (both as
+      // fallbacks; _terminal / form still override).
+      const rec = splitControls(body, fallbackId, fallbackCollection);
       if (!rec.id) {
         errors.push(`Single entry has no id. Add "_terminal": { "id": "..." }, set an id, name the file (drop), or import as a map/array.`);
       } else {
@@ -167,7 +182,10 @@ function parseBatch(raw, defaultCollection, { fallbackId = "" } = {}) {
           errors.push(`"${key}": value is not an object (expected member data).`);
           continue;
         }
-        const rec = splitControls(member, key);     // map key is the id fallback
+        // Map key is the id; suppress the filename collection fallback —
+        // a file containing a MAP defines its own entries, so the prefix
+        // of the containing filename shouldn't be forced onto them.
+        const rec = splitControls(member, key, "", false);
         if (!rec.id) { errors.push(`"${key}": no id.`); continue; }
         out.push(rec);   // collection optional
       }
@@ -341,10 +359,14 @@ class TerminalImport extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /* Read each dropped file, parse it as its own batch, run them all,
-     then report the combined tally. A single screen/member file that
-     carries no id falls back to an id derived from the filename, so
-     untouched export files (screen-inbox.json, crew-matthews.json) import
-     without any edits. */
+     then report the combined tally. The filename encodes routing for a
+     lone bare file: "<prefix>-<id>.json" where the prefix is the
+     collection, or "screen-<id>.json" for a standalone screen (no
+     collection). So crew-byas.json -> {collection:"crew", id:"byas"} and
+     screen-inbox.json -> {collection:"", id:"inbox"}. These are fallbacks:
+     a _terminal envelope or the form field still overrides. Files that
+     contain a map/array/envelope ignore the filename (those define their
+     own entries). */
   async #importFiles(files, defaultCollection) {
     const allRecords = [];
     const allErrors = [];
@@ -357,23 +379,43 @@ class TerminalImport extends HandlebarsApplicationMixin(ApplicationV2) {
       try { raw = JSON.parse(text); }
       catch (err) { allErrors.push(`${file.name}: invalid JSON — ${err.message}`); continue; }
 
-      const fallbackId = TerminalImport.#idFromFilename(file.name);
-      const { records, errors } = parseBatch(raw, defaultCollection, { fallbackId });
+      const { id: fallbackId, collection: fallbackCollection, forceNoCollection } =
+        TerminalImport.#routeFromFilename(file.name);
+      const { records, errors } = parseBatch(
+        raw, defaultCollection, { fallbackId, fallbackCollection, forceNoCollection }
+      );
       records.forEach(r => allRecords.push(r));
       errors.forEach(e => allErrors.push(`${file.name}: ${e}`));
     }
     await this.#finish(allRecords, allErrors);
   }
 
-  /* Turn a filename into a candidate id: drop the .json extension and a
-     leading collection-style prefix (screen-, crew-, mission-, etc.), so
-     "screen-inbox.json" -> "inbox" and "crew-matthews.json" -> "matthews".
-     An unprefixed name ("inbox.json") just loses the extension. */
-  static #idFromFilename(name) {
-    return String(name ?? "")
-      .replace(/\.json$/i, "")
-      .replace(/^(screen|crew|mission|location|datapad|requisition|request)s?-/i, "")
-      .trim();
+  /* Split a filename into { collection, id } on the FIRST hyphen:
+       "crew-byas.json"          -> { collection: "crew",     id: "byas" }
+       "missions-dark-horizon..." -> { collection: "missions", id: "dark-horizon" }
+       "screen-inbox.json"       -> { collection: "",         id: "inbox" }   (sentinel)
+       "inbox.json"              -> { collection: "",         id: "inbox" }   (no prefix)
+     The id keeps any remaining hyphens. "screen" is reserved: it ASSERTS
+     a standalone screen (forceNoCollection), so even a value typed in the
+     form won't attach a collection. A name with no hyphen has no prefix,
+     so the whole basename is the id and the collection defers to the form
+     field (forceNoCollection stays false). */
+  static #routeFromFilename(name) {
+    const base = String(name ?? "").replace(/\.json$/i, "").trim();
+    const dash = base.indexOf("-");
+    if (dash < 1) {
+      // No prefix (no hyphen, or leading hyphen): whole thing is the id,
+      // collection deferred to the form field.
+      return { collection: "", id: base.replace(/^-+/, ""), forceNoCollection: false };
+    }
+    const prefix = base.slice(0, dash);
+    const rest = base.slice(dash + 1);
+    const isScreen = prefix.toLowerCase() === "screen";
+    return {
+      collection: isScreen ? "" : prefix,
+      id: rest,
+      forceNoCollection: isScreen      // "screen-" means: never a member
+    };
   }
 
   static async #onSubmit(_event, _form, formData) {

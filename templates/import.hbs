@@ -39,7 +39,10 @@ Envelope:{ "collection": "crew", "members": [ ... ] }'></textarea>
   <div class="terminal-dropzone">
     <i class="fa-solid fa-cloud-arrow-up"></i>
     <span>…or drag &amp; drop one or more <strong>.json</strong> files here</span>
-    <small>One file per member, or a file containing an array / map / envelope.</small>
+    <small>Bare member/screen files route by name: <code>&lt;collection&gt;-&lt;id&gt;.json</code>
+      (e.g. <code>crew-byas.json</code> → collection <code>crew</code>, id <code>byas</code>);
+      <code>screen-&lt;id&gt;.json</code> for a standalone screen (no collection).
+      Files containing an array / map / envelope route themselves.</small>
   </div>
 
   <div class="terminal-import-results"></div>
