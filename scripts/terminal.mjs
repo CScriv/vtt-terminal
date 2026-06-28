@@ -1280,9 +1280,23 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static #prepLocationDirectory(members) {
     const rows = members
       .filter(m => m.tier === "region")
-      .map(m => ({ target: `${m.collection}/${m.id}`, name: m.name ?? m.id, description: m.description ?? "" }))
+      .map(m => ({ target: `${m.collection}/${m.id}`, name: m.name ?? m.id, summary: TerminalApp.#locSummary(m) }))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return [{ name: null, rows }];
+  }
+
+  /* One-line teaser for location index tables: explicit `summary` if
+     authored, else the first sentence of the description, else a
+     character-truncated description. Keeps directory/children tables
+     scannable instead of dumping the full description. */
+  static #locSummary(m) {
+    if (m.summary) return m.summary;
+    const desc = String(m.description ?? "").trim();
+    if (!desc) return "";
+    const sentence = desc.match(/^.*?[.!?](?=\s|$)/);
+    let s = sentence ? sentence[0] : desc;
+    if (s.length > 140) s = s.slice(0, 137).trimEnd() + "…";
+    return s;
   }
 
   /* Location detail: one render type for all tiers (region/cluster/
@@ -1290,21 +1304,117 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
      whose parent === this id) for the table, and builds the PARENT
      BREADCRUMB chain by walking up via parent links. The child tier
      label is derived for the table header. */
+  /* War-status severity ranking (higher = more severe). Used to derive
+     a parent's effective status from its worst descendant. Unlisted /
+     "clear" states rank 0 (no tag). */
+  static #WAR_SEVERITY = {
+    "liberated": 1,
+    "evacuated": 2,
+    "contested": 3,
+    "under assault": 4,
+    "occupied": 5
+  };
+
+  static #warRank(status) {
+    if (!status) return 0;
+    return TerminalApp.#WAR_SEVERITY[String(status).toLowerCase()] ?? 0;
+  }
+
+  /* Effective war status for a location:
+       - direct: the location's own warStatus (if any)
+       - derived: the most severe warStatus among ALL descendants
+     Returns { status, direct } where `direct` is true if the location
+     itself is flagged, false if the status is inherited from below,
+     null status if nothing is flagged anywhere in the subtree.
+     `childrenOf` maps a parent id -> array of child member objects. */
+  /* Effective war status for a location, with bidirectional inheritance:
+       - direct: the location's OWN warStatus always wins for itself.
+       - down: a flagged ancestor (up to the cluster ceiling) flows DOWN
+         to descendants.
+       - up: a flagged descendant flows UP to ancestors, but only as far
+         as the CLUSTER tier — regions never inherit (clusters are vast
+         and independent; a conflict in one cluster doesn't endanger
+         sibling clusters or color the whole region).
+     Returns { status, direct }: direct=true if the location is itself
+     flagged; false if inherited (either direction); null if nothing
+     applies. `byId` resolves ancestors; `childrenOf` resolves descendants. */
+  static #effectiveWar(member, childrenOf, byId) {
+    // A region is above the propagation ceiling — it shows only its own
+    // explicit status, never inherited.
+    const own = member.warStatus ?? null;
+    const ownRank = TerminalApp.#warRank(own);
+    if (member.tier === "region") {
+      return ownRank > 0 ? { status: own, direct: true } : { status: null, direct: false };
+    }
+
+    // Own status always wins for the location itself.
+    if (ownRank > 0) return { status: own, direct: true };
+
+    let worst = null, worstRank = 0;
+    const consider = (status) => {
+      const r = TerminalApp.#warRank(status);
+      if (r > worstRank) { worstRank = r; worst = status; }
+    };
+
+    // DOWN: worst status among all descendants.
+    const stack = [...(childrenOf.get(member.id) ?? [])];
+    const seen = new Set();
+    while (stack.length) {
+      const m = stack.pop();
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      consider(m.warStatus);
+      for (const c of (childrenOf.get(m.id) ?? [])) stack.push(c);
+    }
+
+    // UP: walk ancestors, but stop AT the cluster (don't read region).
+    // A flagged system/cluster above this body/system flows down to it.
+    let cur = member.parent ? byId.get(member.parent) : null;
+    const guard = new Set();
+    while (cur && !guard.has(cur.id)) {
+      guard.add(cur.id);
+      if (cur.tier === "region") break;       // ceiling: regions don't propagate
+      consider(cur.warStatus);
+      if (cur.tier === "cluster") break;       // cluster is the topmost source
+      cur = cur.parent ? byId.get(cur.parent) : null;
+    }
+
+    if (worstRank === 0) return { status: null, direct: false };
+    return { status: worst, direct: false };
+  }
+
   static #prepLocation(screen, collection, id) {
     const all = loadCollection(collection)
       .map(m => ({ id: m.id, collection, ...m.data }));
     const byId = new Map(all.map(m => [m.id, m]));
 
+    // Parent -> children index, for war-status derivation up the tree.
+    const childrenOf = new Map();
+    for (const m of all) {
+      if (!m.parent) continue;
+      if (!childrenOf.has(m.parent)) childrenOf.set(m.parent, []);
+      childrenOf.get(m.parent).push(m);
+    }
+
+    // This location's own effective war status (direct or inherited).
+    const selfMember = byId.get(id) ?? { id, ...screen };
+    const war = TerminalApp.#effectiveWar(selfMember, childrenOf, byId);
+
     // Children: next tier down (anyone claiming this as parent).
     const children = all
       .filter(m => m.parent === id)
-      .map(m => ({
-        target: `${collection}/${m.id}`,
-        name: m.name ?? m.id,
-        tier: m.tier,
-        bodyType: m.bodyType ?? "",
-        description: m.description ?? ""
-      }))
+      .map(m => {
+        const w = TerminalApp.#effectiveWar(m, childrenOf, byId);
+        return {
+          target: `${collection}/${m.id}`,
+          name: m.name ?? m.id,
+          tier: m.tier,
+          bodyType: m.bodyType ?? "",
+          summary: TerminalApp.#locSummary(m),
+          warStatus: w.status,
+          warDirect: w.direct
+        };
+      })
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
     // Breadcrumb: walk up the parent chain.
@@ -1331,6 +1441,9 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       tier: screen.tier ?? null,
       tierLabel: TerminalApp.#tierLabel(screen.tier),
       bodyType: screen.bodyType ?? null,
+      affiliation: screen.affiliation ?? null,
+      warStatus: war.status,
+      warDirect: war.direct,
       description: screen.description ?? "",
       details: Array.isArray(screen.details) ? screen.details : null,
       children: children.length ? children : null,
@@ -1515,6 +1628,11 @@ Hooks.once("init", () => {
 
   /* Handlebars helper: equality (used for select option selected state). */
   Handlebars.registerHelper("eq", (a, b) => a === b);
+
+  /* slug: lowercase + hyphenate, for safe CSS class names from
+     multi-word values (e.g. "Under Assault" -> "under-assault"). */
+  Handlebars.registerHelper("slug", (s) =>
+    String(s ?? "").toLowerCase().trim().replace(/\s+/g, "-"));
 
   /* locLink: render a location reference. If an id is given, emit a
      clickable nav link to location/<id>; otherwise plain text. Used by

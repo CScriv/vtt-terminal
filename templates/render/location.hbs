@@ -13,6 +13,8 @@
 
 <div class="loc-header">
   <span class="loc-tier">{{location.tierLabel}}{{#if location.bodyType}} :: {{location.bodyType}}{{/if}}</span>
+  {{#if location.affiliation}}<span class="affil affil-{{lower location.affiliation}}">{{location.affiliation}}</span>{{/if}}
+  {{#if location.warStatus}}<span class="war war-{{slug location.warStatus}}{{#unless location.warDirect}} war-inherited{{/unless}}">{{#unless location.warDirect}}⚠ {{/unless}}{{location.warStatus}}</span>{{/if}}
 </div>
 
 {{#if location.description}}
@@ -20,9 +22,11 @@
 {{/if}}
 
 {{#if location.details}}
-  <dl class="rel-list">
-    {{#each location.details}}<dt>{{this.[0]}}</dt><dd>{{this.[1]}}</dd>{{/each}}
-  </dl>
+  <div class="loc-details">
+    <dl class="rel-list">
+      {{#each location.details}}<dt>{{this.[0]}}</dt><dd>{{this.[1]}}</dd>{{/each}}
+    </dl>
+  </div>
 {{/if}}
 
 {{#if location.children}}
@@ -37,10 +41,10 @@
     </thead>
     <tbody>
       {{#each location.children}}
-        <tr class="nav-card" data-action="navigate" data-target="{{this.target}}">
-          <td><span class="roster-name">{{this.name}}</span></td>
+        <tr class="nav-card{{#if this.warStatus}} row-war{{/if}}" data-action="navigate" data-target="{{this.target}}">
+          <td><span class="roster-name">{{this.name}}</span>{{#if this.warStatus}} <span class="war war-{{slug this.warStatus}}{{#unless this.warDirect}} war-inherited{{/unless}} war-inline">{{#unless this.warDirect}}⚠ {{/unless}}{{this.warStatus}}</span>{{/if}}</td>
           {{#if ../location.childrenAreBodies}}<td>{{this.bodyType}}</td>{{/if}}
-          <td>{{this.description}}</td>
+          <td>{{this.summary}}</td>
         </tr>
       {{/each}}
     </tbody>

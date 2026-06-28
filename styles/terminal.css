@@ -1300,3 +1300,76 @@ button.terminal-bulk-import {
   margin-top: 4px;
   width: 100%;
 }
+
+
+/* ===== Locations: details box + affiliation tags ===== */
+
+/* Boxed metadata block (separates codex stats from the lore description) */
+.me-terminal .loc-details {
+  border: 1px solid var(--n7-line, #333);
+  background: var(--n7-panel, rgba(255,255,255,0.03));
+  border-left: 3px solid var(--n7-grey-d, #555);
+  padding: 8px 14px;
+  margin: 12px 0;
+}
+.me-terminal .loc-details .rel-list { margin: 0; }
+
+/* Affiliation / control tag — mirrors the crew .flag pattern */
+.me-terminal .affil {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.me-terminal .affil-geth        { background: #3a2a5a; color: #d8c8ff; }  /* geth purple */
+.me-terminal .affil-council     { background: #1d3a5f; color: #cfe6ff; }  /* council blue */
+.me-terminal .affil-terminus    { background: #5a2a2a; color: #ffd6d6; }  /* terminus red */
+.me-terminal .affil-alliance    { background: #1f4d3f; color: #d6ffe9; }  /* alliance green */
+.me-terminal .affil-independent { background: #4a4030; color: #ffe9c2; }  /* independent amber */
+.me-terminal .affil-contested   { background: #5a3a1a; color: #ffd9a8; }  /* contested orange */
+
+/* ===== War status tags ===== */
+.me-terminal .war {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+/* Direct (this place is the conflict) — solid, escalating severity */
+.me-terminal .war-liberated     { background: #1f5d4a; color: #c6ffe8; }
+.me-terminal .war-evacuated     { background: #4a4a2a; color: #fbffc2; }
+.me-terminal .war-contested     { background: #6a4a1a; color: #ffdca8; }
+.me-terminal 
+.me-terminal .war-under-assault { background: #7a3a1a; color: #ffd0a0; }
+.me-terminal .war-occupied      { background: #7a1f1f; color: #ffd0d0; }
+
+/* Inherited (danger is somewhere below) — outlined/muted variant */
+.me-terminal .war-inherited {
+  background: transparent;
+  border: 1px dashed currentColor;
+  opacity: 0.85;
+}
+.me-terminal .war-inherited.war-occupied   { color: #ff9c9c; }
+.me-terminal .war-inherited.war-under-assault { color: #ffb884; }
+.me-terminal .war-inherited.war-contested  { color: #ffce8a; }
+
+/* Inline (in children tables) — slightly smaller, tighter */
+.me-terminal .war-inline {
+  font-size: 9px;
+  letter-spacing: 1px;
+  margin-left: 6px;
+  padding: 1px 5px;
+}
+/* Row carrying any war status gets a subtle left accent */
+.me-terminal tr.row-war td:first-child { box-shadow: inset 3px 0 0 #7a1f1f; }
+
