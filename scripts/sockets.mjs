@@ -15,7 +15,7 @@
    Socket channel: module.terminal
    ============================================================= */
 
-import { findScreenJournal, getPayload, findCollectionMember } from "./data.mjs";
+import { findScreenJournal, getPayload, findCollectionMember, findCollectionMembers } from "./data.mjs";
 import { terminalWorldTime } from "./gametime.mjs";
 import { getBindings, canPinOrNotice } from "./bindings.mjs";
 
@@ -47,6 +47,8 @@ async function performWrite(message, requestingUser) {
   switch (message.action) {
     case "setRequestStatus":
       return setRequestStatus(message, requestingUser);
+    case "upsertRequest":
+      return upsertRequest(message, requestingUser);
     case "react":
       return react(message, requestingUser);
     case "addComment":
@@ -73,6 +75,18 @@ async function performWrite(message, requestingUser) {
       return sendMessage(message, requestingUser);
     case "toggleReveal":
       return toggleReveal(message, requestingUser);
+    case "createDatapad":
+      return createDatapad(message, requestingUser);
+    case "setDatapadMeta":
+      return setDatapadMeta(message, requestingUser);
+    case "setDiscovered":
+      return setDiscovered(message, requestingUser);
+    case "upsertBlock":
+      return upsertBlock(message, requestingUser);
+    case "moveBlock":
+      return moveBlock(message, requestingUser);
+    case "deleteBlock":
+      return deleteBlock(message, requestingUser);
     default:
       console.warn(`terminal | unknown write action: ${message.action}`);
   }
@@ -117,6 +131,110 @@ async function setRequestStatus(message, requestingUser) {
 
   await journal.setFlag(MODULE_ID, "json", data);
   ui.notifications?.info(`Terminal: status updated to "${status}".`);
+}
+
+/* Create or edit a request on a board screen. One handler for both:
+   a requestId that resolves to an existing entry is patched in place,
+   anything else appends a new one.
+   message: { screenId, requestId, title, from, fromId, role, status,
+              body, date, promote, wt }
+
+   GM-ONLY. Authoring board content is a GM action; the controls only
+   render for the GM and this re-checks, so a crafted socket emit from
+   a player client can't create or rewrite requests. Status changes are
+   unaffected — those keep going through setRequestStatus. */
+async function upsertRequest(message, requestingUser) {
+  if (!(requestingUser?.isGM)) {
+    ui.notifications?.warn("Terminal: only the GM can create or edit requests.");
+    return;
+  }
+
+  const { screenId, requestId } = message;
+  const journal = findScreenJournal(screenId, { includeDisabled: true });
+  if (!journal) {
+    ui.notifications?.warn(`Terminal: board "${screenId}" not found.`);
+    return;
+  }
+
+  const parsed = getPayload(journal);
+  if (!parsed.ok) {
+    ui.notifications?.error(`Terminal: couldn't read board data — ${parsed.error}`);
+    return;
+  }
+  const data = parsed.data;
+  if (!Array.isArray(data.requests)) data.requests = [];
+
+  const title = String(message.title ?? "").trim();
+  if (!title) return; // the composer already guards this
+
+  // The status must be one this board declares, same rule the status
+  // popup enforces. A board with no sections accepts anything.
+  const validStatuses = new Set((data.sections ?? []).flatMap(s => s.statuses ?? []));
+  let status = String(message.status ?? "").trim();
+  if (validStatuses.size && !validStatuses.has(status)) {
+    // Fall back to the first declared status rather than writing a
+    // request that lands in the OTHER bucket.
+    status = [...validStatuses][0];
+  }
+
+  const existing = requestId ? data.requests.find(r => r.id === requestId) : null;
+  if (requestId && !existing) {
+    ui.notifications?.warn(`Terminal: request "${requestId}" not found.`);
+    return;
+  }
+
+  const req = existing ?? { id: nextRequestId(data.requests) };
+
+  // Assign present fields; strip the ones cleared in the form so the
+  // card's optional blocks disappear rather than rendering empty.
+  req.title = title;
+  req.status = status;
+  assignOrDelete(req, "from", message.from);
+  assignOrDelete(req, "fromId", message.fromId);
+  assignOrDelete(req, "role", message.role);
+  assignOrDelete(req, "body", message.body);
+  assignOrDelete(req, "date", message.date);
+  assignOrDelete(req, "promote", message.promote);
+
+  // wt: sortable in-world stamp, set once at creation. Editing leaves
+  // it alone (message.wt is undefined from an edit), so correcting a
+  // typo doesn't move the card up the board.
+  if (Number.isFinite(message.wt) && !Number.isFinite(req.wt)) req.wt = message.wt;
+
+  if (existing) {
+    req.editedAt = new Date().toISOString();
+  } else {
+    req.createdAt = new Date().toISOString();
+    data.requests.push(req);
+  }
+
+  await journal.setFlag(MODULE_ID, "json", data);
+  ui.notifications?.info(existing ? "Terminal: request updated." : "Terminal: request posted.");
+}
+
+/* Next sequential request id ("rq-004"), continuing the hand-authored
+   numbering rather than switching to random ids mid-board. Only the GM
+   writes, so a max+1 scan can't race; the while-loop is belt-and-braces
+   for boards with duplicate or non-sequential ids. */
+function nextRequestId(requests) {
+  const taken = new Set(requests.map(r => r.id));
+  let n = 0;
+  for (const r of requests) {
+    const m = /^rq-(\d+)$/.exec(String(r.id ?? ""));
+    if (m) n = Math.max(n, Number(m[1]));
+  }
+  let id;
+  do { id = `rq-${String(++n).padStart(3, "0")}`; } while (taken.has(id));
+  return id;
+}
+
+/* Set a field when it has a value, remove it when it doesn't. Keeps
+   cleared fields out of the JSON so `{{#if}}` blocks in the template
+   stay accurate and the payload doesn't accumulate empty strings. */
+function assignOrDelete(obj, key, value) {
+  if (value === undefined) return;                 // not sent -> untouched
+  if (value === null || value === "") delete obj[key];
+  else obj[key] = value;
 }
 
 /* ---- Feed helpers ---- */
@@ -531,6 +649,234 @@ async function toggleReveal(message, requestingUser) {
   data.revealed = [...revealed];
 
   await journal.setFlag(MODULE_ID, "json", data);
+}
+
+/* =============================================================
+   DATAPAD AUTHORING (GM only)
+   -------------------------------------------------------------
+   Creating and editing datapads from inside the terminal. Every
+   handler here re-checks isGM: the controls only render for the GM,
+   but performWrite dispatches on whatever arrives over the socket,
+   so the guard has to live at the write.
+   ============================================================= */
+
+const DATAPAD_COLLECTION = "datapads";
+
+/* Resolve a datapad journal + parsed payload. */
+function loadDatapad(memberId) {
+  const journal = findCollectionMember(DATAPAD_COLLECTION, memberId, { includeDisabled: true });
+  if (!journal) return { error: `Datapad "${memberId}" not found.` };
+  const parsed = getPayload(journal);
+  if (!parsed.ok) return { error: `Couldn't read datapad — ${parsed.error}` };
+  return { journal, data: parsed.data };
+}
+
+/* Give every block a stable id, BEFORE any write that could reorder
+   or remove one.
+
+   The renderer falls back to `b<index>` for blocks with no id, and
+   `revealed[]` stores whatever id was showing at reveal time. So an
+   id-less block that gets moved would silently inherit another
+   block's reveal state. Backfilling with exactly that same
+   `b<index>` value preserves existing reveals, and from then on the
+   id travels with the block instead of its position.
+
+   Returns true if anything changed. */
+function normalizeBlockIds(data) {
+  const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+  let changed = false;
+  blocks.forEach((b, i) => {
+    if (!b.id) { b.id = `b${i}`; changed = true; }
+  });
+  data.blocks = blocks;
+  return changed;
+}
+
+/* Strip nulls so cleared optional fields leave the payload rather
+   than sitting in it as empty values the templates would still see. */
+function pruneNulls(obj) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined || v === "") delete obj[k];
+  }
+  return obj;
+}
+
+/* Create a new datapad journal. The ONLY document-creating write in
+   the module. Lands in the folder the existing datapads live in, so
+   new ones file themselves alongside the old ones; falls back to the
+   sidebar root when there are none yet.
+   message: { id, title, source, date, tag, prompt } */
+async function createDatapad(message, requestingUser) {
+  if (!(requestingUser?.isGM)) {
+    ui.notifications?.warn("Terminal: only the GM can create datapads.");
+    return;
+  }
+  const { id } = message;
+  if (!id) return;
+
+  const clash = findCollectionMember(DATAPAD_COLLECTION, id, { includeDisabled: true });
+  if (clash) {
+    ui.notifications?.warn(`Terminal: a datapad with the id "${id}" already exists.`);
+    return;
+  }
+
+  // File alongside the existing datapads.
+  const siblings = findCollectionMembers(DATAPAD_COLLECTION, { includeDisabled: true });
+  const folder = siblings.find(j => j.folder)?.folder ?? null;
+
+  const payload = pruneNulls({
+    render: "datapad",
+    title: message.title,
+    tag: message.tag ?? null,
+    prompt: message.prompt ?? null,
+    source: message.source ?? null,
+    date: message.date ?? null
+  });
+  // Created hidden: a half-built datapad should never be listed.
+  payload.discovered = false;
+  payload.revealed = [];
+  payload.blocks = [];
+
+  const journal = await JournalEntry.create({
+    name: message.title || id,
+    folder: folder?.id ?? null,
+    // A note page so opening the journal directly doesn't look empty
+    // and explains where the content actually lives.
+    pages: [{
+      name: "About",
+      type: "text",
+      text: { content: "<p>Content for this datapad is stored in the Terminal module's flag data. Edit it from the terminal, or via the journal header's <strong>Terminal Data</strong> button.</p>" }
+    }],
+    flags: {
+      [MODULE_ID]: {
+        enabled: true,
+        collection: DATAPAD_COLLECTION,
+        id,
+        json: payload
+      }
+    }
+  });
+
+  if (!journal) {
+    ui.notifications?.error("Terminal: the datapad journal couldn't be created.");
+    return;
+  }
+  ui.notifications?.info(`Terminal: datapad "${id}" created (hidden).`);
+}
+
+/* Update a datapad's header fields. message:
+   { memberId, title, source, date, tag, prompt } */
+async function setDatapadMeta(message, requestingUser) {
+  if (!(requestingUser?.isGM)) return;
+  const res = loadDatapad(message.memberId);
+  if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
+  const { journal, data } = res;
+
+  data.title = message.title;
+  for (const k of ["source", "date", "tag", "prompt"]) {
+    if (message[k]) data[k] = message[k];
+    else delete data[k];
+  }
+
+  await journal.setFlag(MODULE_ID, "json", data);
+  // Keep the sidebar name in step with the in-terminal title.
+  if (journal.name !== message.title) await journal.update({ name: message.title });
+  ui.notifications?.info("Terminal: datapad updated.");
+}
+
+/* Mark a datapad discovered / undiscovered. Undiscovered datapads are
+   filtered out of the directory AND refused on direct navigation for
+   players — unlike a locked BLOCK, which shows a placeholder. A
+   datapad the crew hasn't found yet shouldn't announce itself.
+   message: { memberId, discovered } */
+async function setDiscovered(message, requestingUser) {
+  if (!(requestingUser?.isGM)) return;
+  const res = loadDatapad(message.memberId);
+  if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
+  const { journal, data } = res;
+
+  data.discovered = message.discovered === true;
+  await journal.setFlag(MODULE_ID, "json", data);
+  ui.notifications?.info(data.discovered
+    ? "Terminal: datapad is now visible to the crew."
+    : "Terminal: datapad hidden from the crew.");
+}
+
+/* Create or edit one block. A blockId that resolves patches in place,
+   anything else appends. message: { memberId, blockId, block } */
+async function upsertBlock(message, requestingUser) {
+  if (!(requestingUser?.isGM)) return;
+  const { memberId, blockId, block } = message;
+  if (!block?.type) return;
+
+  const res = loadDatapad(memberId);
+  if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
+  const { journal, data } = res;
+  normalizeBlockIds(data);
+
+  const clean = pruneNulls({ ...block });
+  // `secret: false` is meaningful to strip rather than store.
+  if (clean.secret !== true) delete clean.secret;
+
+  if (blockId) {
+    const idx = data.blocks.findIndex(b => b.id === blockId);
+    if (idx === -1) { ui.notifications?.warn("Terminal: block not found."); return; }
+    // Keep the id; replace everything else, so a type change doesn't
+    // leave the previous type's fields behind.
+    data.blocks[idx] = { ...clean, id: blockId };
+    // A block that's no longer secret shouldn't linger in revealed[].
+    if (clean.secret !== true) {
+      data.revealed = (Array.isArray(data.revealed) ? data.revealed : []).filter(x => x !== blockId);
+    }
+  } else {
+    data.blocks.push({ ...clean, id: `blk-${foundry.utils.randomID(8)}` });
+  }
+
+  await journal.setFlag(MODULE_ID, "json", data);
+  ui.notifications?.info(blockId ? "Terminal: block updated." : "Terminal: block added.");
+}
+
+/* Move a block one position up or down.
+   message: { memberId, blockId, dir: "up" | "down" } */
+async function moveBlock(message, requestingUser) {
+  if (!(requestingUser?.isGM)) return;
+  const { memberId, blockId } = message;
+  const delta = message.dir === "up" ? -1 : 1;
+
+  const res = loadDatapad(memberId);
+  if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
+  const { journal, data } = res;
+  normalizeBlockIds(data);
+
+  const idx = data.blocks.findIndex(b => b.id === blockId);
+  const to = idx + delta;
+  if (idx === -1 || to < 0 || to >= data.blocks.length) return; // no-op at the ends
+
+  const [moved] = data.blocks.splice(idx, 1);
+  data.blocks.splice(to, 0, moved);
+
+  await journal.setFlag(MODULE_ID, "json", data);
+}
+
+/* Remove a block, and its reveal record with it.
+   message: { memberId, blockId } */
+async function deleteBlock(message, requestingUser) {
+  if (!(requestingUser?.isGM)) return;
+  const { memberId, blockId } = message;
+
+  const res = loadDatapad(memberId);
+  if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
+  const { journal, data } = res;
+  normalizeBlockIds(data);
+
+  const before = data.blocks.length;
+  data.blocks = data.blocks.filter(b => b.id !== blockId);
+  if (data.blocks.length === before) { ui.notifications?.warn("Terminal: block not found."); return; }
+
+  data.revealed = (Array.isArray(data.revealed) ? data.revealed : []).filter(x => x !== blockId);
+
+  await journal.setFlag(MODULE_ID, "json", data);
+  ui.notifications?.info("Terminal: block deleted.");
 }
 
 /* ---- Wire the socket + the re-render hook ---- */

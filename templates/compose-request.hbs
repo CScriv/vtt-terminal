@@ -1,0 +1,87 @@
+{{!--
+  compose-request.hbs — create / edit form for a request-board entry.
+  Rendered by ComposeRequestApp. GM-only (the app and the write handler
+  both re-check). Statuses come from the board's own sections; the
+  requester dropdown comes from the crew collection, so picking a member
+  gives the card a working dossier link.
+--}}
+<div class="{{themeClass}} compose-wrap compose-req">
+  <form class="compose-form" onsubmit="return false;">
+
+  <div class="form-group">
+    <label>Title</label>
+    <input type="text" name="title" value="{{title}}" placeholder="what is being requested" autofocus />
+  </div>
+
+  <div class="form-group">
+    <label>Requester (crew)</label>
+    <select name="member">
+      <option value="">— none —</option>
+      {{#each crew}}
+        <option value="{{this.id}}" data-role="{{this.role}}"{{#if this.selected}} selected{{/if}}>{{this.name}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>…or custom name</label>
+    <input type="text" name="custom" value="{{customFrom}}" placeholder="non-crew requester; overrides the dropdown" />
+  </div>
+
+  <div class="form-group">
+    <label>Role</label>
+    <input type="text" name="role" value="{{role}}" placeholder="fills from the dossier when you pick a crew member" />
+  </div>
+
+  <div class="form-group">
+    <label>Status</label>
+    <select name="status">
+      {{#each statuses}}
+        <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.value}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Body</label>
+    <textarea name="body" rows="6" placeholder="the request itself">{{body}}</textarea>
+  </div>
+
+  <details class="compose-req-optional"{{#if hasPromote}} open{{/if}}>
+    <summary>Link to an operation</summary>
+
+    <div class="form-group">
+      <label>Mission</label>
+      <select name="promoteTarget">
+        <option value="">— not linked —</option>
+        {{#each missions}}
+          <option value="{{this.target}}" data-name="{{this.name}}"{{#if this.selected}} selected{{/if}}>{{this.name}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Link text</label>
+      <input type="text" name="promoteLabel" value="{{promoteLabel}}" placeholder="see Mission Log" />
+    </div>
+  </details>
+
+  <details class="compose-req-optional">
+    <summary>Override the date</summary>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="text" name="date" value="{{date}}" placeholder="28 Oct"{{#if dateLocked}} disabled{{/if}} />
+      {{#if dateLocked}}
+        <p class="compose-hint">This request is stamped with in-world time and dates itself.</p>
+      {{else}}
+        <p class="compose-hint">Leave blank to stamp with the current in-world time.</p>
+      {{/if}}
+    </div>
+  </details>
+
+  <div class="compose-actions">
+    <button type="button" data-action="save">{{submitLabel}}</button>
+  </div>
+
+  </form>
+</div>

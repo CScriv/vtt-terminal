@@ -906,6 +906,141 @@
 /* ---- Request status: clickable + updated-by line (stage 5) ---- */
 .terminal-app .req-status-btn { cursor: pointer; }
 .terminal-app .req-status-btn:hover { outline: 1px solid var(--n7-red-lt); border-radius: 2px; }
+
+/* ---- Request authoring (GM) ---- */
+/* Compose control above the board. Reads as a terminal command line
+   rather than a button, matching the rest of the chrome. */
+.me-terminal .req-compose-bar { margin: 4px 0 14px; }
+.terminal-app .req-compose-btn {
+  cursor: pointer;
+  color: var(--n7-grey);
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+.terminal-app .req-compose-btn:hover { color: var(--n7-red-lt); }
+
+/* Edit sits next to the status flag in the card header; the header
+   already flexes, so the pair gets its own baseline-aligned group. */
+.me-terminal .req-head-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.terminal-app .req-edit-btn {
+  cursor: pointer;
+  color: var(--n7-grey-d);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.terminal-app .req-edit-btn:hover { color: var(--n7-red-lt); }
+
+/* ---- Shared authoring-window chrome (request composer, datapad
+   create / info / block editor). The theme class sits on .compose-wrap
+   INSIDE the window, never on the app root. ---- */
+.terminal-compose .compose-wrap { padding: 4px 2px; }
+.terminal-compose .compose-form textarea { width: 100%; resize: vertical; }
+.terminal-compose .compose-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--n7-grey-d);
+}
+.terminal-compose .compose-actions {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--n7-line);
+}
+.terminal-compose .compose-req-optional { margin: 10px 0; }
+.terminal-compose .compose-req-optional > summary {
+  cursor: pointer;
+  color: var(--n7-grey);
+  letter-spacing: 1px;
+  padding: 4px 0;
+}
+.terminal-compose .compose-req-optional > summary:hover { color: var(--n7-red-lt); }
+
+/* Block editor: only the selected type's fields are shown (toggled in
+   JS), so the window stays short whichever type is chosen. */
+.terminal-block-editor .dp-secret-check { cursor: pointer; }
+.terminal-block-editor .dp-secret-check input { margin-right: 6px; }
+
+/* ---- Datapad authoring ---- */
+.me-terminal .dp-dir-bar { margin: 4px 0 12px; }
+.terminal-app .dp-dir-new {
+  cursor: pointer;
+  color: var(--n7-grey);
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+.terminal-app .dp-dir-new:hover { color: var(--n7-red-lt); }
+
+/* GM control bar on a datapad screen. */
+.me-terminal .dp-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 4px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--n7-line);
+}
+.terminal-app .dp-edit-btn {
+  cursor: pointer;
+  color: var(--n7-grey);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.terminal-app .dp-edit-btn:hover { color: var(--n7-red-lt); }
+
+/* Discovery state: the GM should be able to tell at a glance whether
+   the crew can see this, since that's the whole point of the field. */
+.me-terminal .dp-discover-state {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #1f6f3f;
+  border: 1px solid currentColor;
+  padding: 1px 8px;
+}
+.me-terminal .dp-discover-state.dp-state-hidden { color: var(--n7-red-lt); }
+.terminal-app .dp-discover-btn {
+  cursor: pointer;
+  color: var(--n7-grey-d);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.terminal-app .dp-discover-btn:hover { color: var(--n7-red-lt); }
+
+/* Hidden rows in the directory (GM view only — players never get them). */
+.me-terminal .dp-row-hidden { opacity: 0.55; }
+.me-terminal .dp-hidden-tag {
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--n7-red-lt);
+  border: 1px solid currentColor;
+  padding: 0 4px;
+}
+
+/* Per-block controls, sharing the bar the reveal toggle already used. */
+.me-terminal .dp-block-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.me-terminal .dp-block-type {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--n7-grey-d);
+}
+.terminal-app .dp-block-btn {
+  cursor: pointer;
+  color: var(--n7-grey-d);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.terminal-app .dp-block-btn:hover { color: var(--n7-red-lt); }
+.terminal-app .dp-block-danger:hover { color: var(--n7-red); }
 .me-terminal .req-updated {
   margin-top: 6px;
   font-size: 10px;

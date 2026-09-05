@@ -2,10 +2,10 @@
   "id": "vtt-terminal",
   "title": "Terminal",
   "description": "A generic, theme-able in-world terminal/computer UI engine for hi-tech tabletop games. Renders navigable screens from JSON data stored on flagged journals. Game-specific styling and content live in swappable themes and data documents.",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "compatibility": {
     "minimum": "13",
-    "verified": "13.351"
+    "verified": "14.365"
   },
   "authors": [
     { "name": "Caleb Scrivner" }

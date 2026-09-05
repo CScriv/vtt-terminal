@@ -1,0 +1,128 @@
+{{!--
+  datapad-block.hbs — one datapad block. The type dropdown swaps which
+  field set is visible (data-type-fields, toggled in _onRender); the
+  save handler reads only the fields belonging to the chosen type, so
+  changing a block's type doesn't leave the old type's keys behind.
+
+  Grid data (keyvalue rows, table headers/rows) is pipe-delimited,
+  one row per line.
+
+  FIELD NAMES ARE PREFIXED BY TYPE ON PURPOSE. Every type's field set is
+  rendered and the inactive ones are only hidden with display:none, so
+  they all remain in form.elements. Two inputs sharing a name make
+  form.elements[name] a RadioNodeList whose .value is "" for non-radio
+  inputs — the value reads as empty and the field silently saves as
+  nothing. "body" (text + message) and "label" (text + keyvalue + table)
+  would collide. Don't shorten these back to bare names.
+--}}
+<div class="{{themeClass}} compose-wrap">
+  <form class="compose-form" onsubmit="return false;">
+
+    <div class="form-group">
+      <label>Block type</label>
+      <select name="type">
+        {{#each types}}
+          <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.value}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    {{!-- heading --}}
+    <div data-type-fields="heading">
+      <div class="form-group">
+        <label>Text</label>
+        <input type="text" name="heading-text" value="{{text}}" />
+      </div>
+    </div>
+
+    {{!-- text --}}
+    <div data-type-fields="text">
+      <div class="form-group">
+        <label>Label</label>
+        <input type="text" name="text-label" value="{{label}}" placeholder="optional" />
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea name="text-body" rows="6">{{body}}</textarea>
+      </div>
+      <div class="form-group">
+        <label>List items</label>
+        <textarea name="text-items" rows="4" placeholder="one item per line">{{items}}</textarea>
+      </div>
+    </div>
+
+    {{!-- keyvalue --}}
+    <div data-type-fields="keyvalue">
+      <div class="form-group">
+        <label>Label</label>
+        <input type="text" name="kv-label" value="{{label}}" placeholder="optional" />
+      </div>
+      <div class="form-group">
+        <label>Rows</label>
+        <textarea name="kv-pairs" rows="8" placeholder="Key | Value&#10;Clearance | Black">{{pairs}}</textarea>
+        <p class="compose-hint">One pair per line, separated by a pipe.</p>
+      </div>
+    </div>
+
+    {{!-- table --}}
+    <div data-type-fields="table">
+      <div class="form-group">
+        <label>Label</label>
+        <input type="text" name="table-label" value="{{label}}" placeholder="optional" />
+      </div>
+      <div class="form-group">
+        <label>Headers</label>
+        <input type="text" name="table-headers" value="{{headers}}" placeholder="Date | Location | Notes" />
+      </div>
+      <div class="form-group">
+        <label>Rows</label>
+        <textarea name="table-rows" rows="8" placeholder="one row per line, cells separated by a pipe">{{rows}}</textarea>
+        <p class="compose-hint">Cell counts don't have to match the headers; short rows just render short.</p>
+      </div>
+    </div>
+
+    {{!-- message --}}
+    <div data-type-fields="message">
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" name="msg-subject" value="{{subject}}" />
+      </div>
+      <div class="form-group">
+        <label>From</label>
+        <input type="text" name="msg-from" value="{{from}}" />
+      </div>
+      <div class="form-group">
+        <label>To</label>
+        <input type="text" name="msg-to" value="{{to}}" />
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="text" name="msg-date" value="{{date}}" />
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea name="msg-body" rows="6">{{body}}</textarea>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="form-group">
+      <label class="dp-secret-check">
+        <input type="checkbox" name="secret"{{#if secret}} checked{{/if}} />
+        Encrypted — hidden until revealed
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>Locked label</label>
+      <input type="text" name="lockLabel" value="{{lockLabel}}" placeholder="what players see on the locked bar" />
+      <p class="compose-hint">Shown beside ENCRYPTED so players know something is here. Leave blank for a bare bar.</p>
+    </div>
+
+    <div class="compose-actions">
+      <button type="button" data-action="save">{{submitLabel}}</button>
+    </div>
+
+  </form>
+</div>

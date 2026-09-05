@@ -30,6 +30,8 @@ import "./import.mjs";
 import { ComposeMessageApp } from "./compose.mjs";
 import { ComposePostApp } from "./compose-post.mjs";
 import { ComposeReplyApp } from "./compose-reply.mjs";
+import { ComposeRequestApp } from "./compose-request.mjs";
+import { DatapadCreateApp, DatapadMetaApp, BlockEditorApp } from "./datapad-edit.mjs";
 
 
 const MODULE_ID = "vtt-terminal";
@@ -54,6 +56,17 @@ const RENDER_TEMPLATES = {
   "location":     `modules/${MODULE_ID}/templates/render/location.hbs`
 };
 
+/* Render types that generate themselves from a collection. Each needs a
+   "collection" field in its screen JSON naming the set it lists; without
+   it there is nothing to render, so the engine reports that rather than
+   drawing an empty screen. */
+const COLLECTION_RENDER_TYPES = new Set([
+  "crew-roster",
+  "mission-board",
+  "datapad-directory",
+  "location-directory"
+]);
+
 class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static DEFAULT_OPTIONS = {
@@ -67,6 +80,8 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       back: TerminalApp.#onBack,
       home: TerminalApp.#onHome,
       setStatus: TerminalApp.#onSetStatus,
+      composeRequest: TerminalApp.#onComposeRequest,
+      editRequest: TerminalApp.#onEditRequest,
       react: TerminalApp.#onReact,
       addComment: TerminalApp.#onAddComment,
       openThread: TerminalApp.#onOpenThread,
@@ -82,7 +97,14 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       togglePin: TerminalApp.#onTogglePin,
       togglePostMenu: TerminalApp.#onTogglePostMenu,
       toggleReplyMenu: TerminalApp.#onToggleReplyMenu,
-      toggleReveal: TerminalApp.#onToggleReveal
+      toggleReveal: TerminalApp.#onToggleReveal,
+      newDatapad: TerminalApp.#onNewDatapad,
+      editDatapadMeta: TerminalApp.#onEditDatapadMeta,
+      toggleDiscovered: TerminalApp.#onToggleDiscovered,
+      addBlock: TerminalApp.#onAddBlock,
+      editBlock: TerminalApp.#onEditBlock,
+      moveBlock: TerminalApp.#onMoveBlock,
+      deleteBlock: TerminalApp.#onDeleteBlock
     }
   };
 
@@ -159,9 +181,14 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
 
-    // Gather valid statuses from the current screen's sections.
+    // Gather valid statuses from the current screen's sections. Sections
+    // marked "gmOnly" (e.g. ARCHIVED) are withheld from players, so a
+    // player can't archive a request out of everyone's view.
     const res = loadScreen(screenId);
-    const sections = res.ok ? (res.data.sections ?? []) : [];
+    const allSections = res.ok ? (res.data.sections ?? []) : [];
+    const sections = game.user.isGM
+      ? allSections
+      : allSections.filter(s => s.gmOnly !== true);
     const statuses = [...new Set(sections.flatMap(s => s.statuses ?? []))];
     if (!statuses.length) {
       console.warn(`${MODULE_ID} | setStatus: no statuses resolved (screen "${screenId}")`);
@@ -247,6 +274,28 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       status: result.status,
       by
     });
+  }
+
+  /* Open the request composer for a board (create mode). GM-only: the
+     button only renders for the GM, this re-checks, and upsertRequest
+     re-checks again GM-side. */
+  static #onComposeRequest(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const screenId = target?.dataset?.screenId;
+    if (!screenId) return;
+    new ComposeRequestApp({ screenId }).render(true);
+  }
+
+  /* Open the request composer pre-filled for an existing request
+     (edit mode). Same GM gate as create. */
+  static #onEditRequest(event, target) {
+    event?.stopPropagation?.();   // don't trigger the card's status control
+    if (!game.user.isGM) return;
+    const screenId = target?.dataset?.screenId;
+    const requestId = target?.dataset?.requestId;
+    if (!screenId || !requestId) return;
+    new ComposeRequestApp({ screenId, requestId }).render(true);
   }
 
   /* Crew picker for GM attribution. Returns { id, name } of the chosen
@@ -528,6 +577,81 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     requestWrite({ action: "toggleReveal", collection, memberId, blockId });
   }
 
+  /* ---- Datapad authoring (GM only) ----
+     Each handler re-checks isGM even though the controls only render
+     for the GM; the write handlers check again server-side. */
+
+  static #onNewDatapad(event, _target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    new DatapadCreateApp().render(true);
+  }
+
+  static #onEditDatapadMeta(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    if (!memberId) return;
+    new DatapadMetaApp({ memberId }).render(true);
+  }
+
+  /* Flip a datapad between hidden and visible. Fired from the directory
+     row and from the datapad screen's own control bar. */
+  static #onToggleDiscovered(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    if (!memberId) return;
+    const discovered = target?.dataset?.discovered !== "true"; // toggle
+    requestWrite({ action: "setDiscovered", memberId, discovered });
+  }
+
+  static #onAddBlock(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    if (!memberId) return;
+    new BlockEditorApp({ memberId }).render(true);
+  }
+
+  static #onEditBlock(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    const blockId = target?.dataset?.blockId;
+    if (!memberId || !blockId) return;
+    new BlockEditorApp({ memberId, blockId }).render(true);
+  }
+
+  static #onMoveBlock(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    const blockId = target?.dataset?.blockId;
+    const dir = target?.dataset?.dir;
+    if (!memberId || !blockId || !dir) return;
+    requestWrite({ action: "moveBlock", memberId, blockId, dir });
+  }
+
+  /* Deleting a block is the one destructive datapad action, so it
+     confirms first. Everything else is reversible. */
+  static async #onDeleteBlock(event, target) {
+    event?.stopPropagation?.();
+    if (!game.user.isGM) return;
+    const memberId = target?.dataset?.memberId;
+    const blockId = target?.dataset?.blockId;
+    if (!memberId || !blockId) return;
+
+    const { DialogV2 } = foundry.applications.api;
+    const ok = await DialogV2.confirm({
+      window: { title: "Delete Block" },
+      content: "<p>Delete this block? This can't be undone.</p>"
+    }).catch(() => false);
+    if (!ok) return;
+
+    requestWrite({ action: "deleteBlock", memberId, blockId });
+  }
+
     /* Compose: opens the standalone ComposeMessageApp. FROM/TO/subject/
      body collection + the sendMessage write all live in that app now.
      A reply click carries prefill (member id + "Re: ..." subject) on
@@ -630,6 +754,20 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const res = loadMember(collection, id);
       if (!res.ok) return { ...base, error: res.error };
       const screen = res.data;
+
+      /* Discovery gate. A member whose payload says discovered:false is
+         refused for players on DIRECT navigation too, not just hidden
+         from its directory — otherwise a link from a mission or another
+         datapad would announce that it exists. The error text is the
+         same "not found or disabled" string an absent member produces,
+         so a probe can't distinguish hidden from non-existent.
+
+         Absent `discovered` means visible, so nothing authored before
+         this existed changes behaviour. */
+      if (!game.user.isGM && screen.discovered === false) {
+        return { ...base, error: `${collection} member "${id}" not found or disabled.` };
+      }
+
       const renderType = screen.render ?? null;
       const renderTemplate = RENDER_TEMPLATES[renderType] ?? null;
 
@@ -702,6 +840,26 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       } else {
         groups = TerminalApp.#groupRoster(members, screen.departments ?? []);
       }
+    } else if (COLLECTION_RENDER_TYPES.has(renderType)) {
+      /* A collection-driven layout with no "collection" declared in its
+         payload renders as a blank screen otherwise — no table, not even
+         the empty-state line — because `groups` stays null and the
+         template's {{#each}} has nothing to walk. Say so instead.
+
+         Note this is the screen's PAYLOAD field ("which collection do I
+         list"), not the journal's collection FLAG ("which collection do
+         I belong to"). Standalone screens leave the flag blank. */
+      return {
+        ...base,
+        error: `Screen "${id}" uses render "${renderType}" but its JSON declares no "collection" to list.`
+      };
+    }
+
+    /* Datapad directory: GM control bar (create) rides alongside the
+       generated rows. */
+    let datapadDir = null;
+    if (renderType === "datapad-directory") {
+      datapadDir = { isGM: game.user.isGM };
     }
 
     /* Black box: derive the "current" entry (flagged, else last) and
@@ -758,6 +916,7 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       blackbox,
       feed,
       requestBoard,
+      datapadDir,
       inbox,
       thread,
       headerOverride,
@@ -994,12 +1153,35 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const requests = Array.isArray(screen.requests) ? screen.requests : [];
     const sections = Array.isArray(screen.sections) ? screen.sections : [];
     const cardClass = screen.cardClass ?? ""; // e.g. "req-mission" for crew requests
+    const isGM = game.user.isGM;
 
+    /* Sort key: prefer the in-world stamp (`wt`) written when a request
+       is composed in-app, and fall back to parsing the authored `date`
+       string for hand-written entries. Same split the feed uses. */
+    const sortKey = (r) => Number.isFinite(r.wt)
+      ? r.wt
+      : TerminalApp.#dateSortKey(r.date);
     const byDateDesc = (a, b) =>
-      TerminalApp.#dateSortKey(b.date) - TerminalApp.#dateSortKey(a.date) ||
+      sortKey(b) - sortKey(a) ||
       String(a.title ?? "").localeCompare(String(b.title ?? ""));
 
-    const decorate = (r, dim) => ({ ...r, cardClass, dim, screenId });
+    const decorate = (r, dim) => ({
+      ...r,
+      /* Display date: derived from `wt` when present so composed
+         requests date themselves, else the authored string. */
+      date: Number.isFinite(r.wt) ? formatWorldTime(r.wt) : (r.date ?? ""),
+      cardClass,
+      dim,
+      screenId,
+      canEdit: isGM
+    });
+
+    /* Sections marked "gmOnly" (e.g. ARCHIVED) are the soft-delete
+       mechanism: the GM still sees them, players don't. They're matched
+       for EVERYONE so their requests count as claimed — otherwise an
+       archived request would fall through to OTHER and stay visible to
+       the players it was archived away from. The group itself is then
+       dropped for non-GMs. */
     const claimed = new Set();
     const groups = [];
 
@@ -1007,6 +1189,7 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const statuses = new Set(sec.statuses ?? []);
       const matched = requests.filter(r => statuses.has(r.status));
       matched.forEach(r => claimed.add(r));
+      if (sec.gmOnly === true && !isGM) continue;
       groups.push({
         name: sec.name,
         dim: sec.dim === true,
@@ -1023,7 +1206,7 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    return { groups };
+    return { groups, screenId, isGM, canCompose: isGM };
   }
 
   /* Number of reactor names shown in a tooltip before "+ X more". */
@@ -1220,13 +1403,28 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /* Flat directory of datapads: limited header info, each navigates to
      its detail. Returned as a single group for the directory template. */
   static #prepDatapadDirectory(members) {
+    const isGM = game.user.isGM;
     const rows = members
+      /* Only actual datapads. A directory journal that also carries the
+         collection FLAG would otherwise list itself as a row pointing
+         back at the directory. Standalone screens should leave that flag
+         blank, but a stray one shouldn't produce a nonsense row. */
+      .filter(m => m.render === "datapad")
+      /* Undiscovered datapads are absent for players — not greyed out,
+         not placeholder'd. A locked BLOCK says "there's more here";
+         an undiscovered DATAPAD shouldn't exist yet as far as the crew
+         is concerned. `discovered` absent = visible (back-compat). */
+      .filter(m => isGM || m.discovered !== false)
       .map(m => ({
         target: `${m.collection}/${m.id}`,
+        memberId: m.id,
         title: m.title ?? m.id,
         tag: m.tag ?? "",
         source: m.source ?? "",
-        date: m.date ?? ""
+        date: m.date ?? "",
+        /* GM-only: which side of the discovery line this row sits on. */
+        discovered: m.discovered !== false,
+        canEdit: isGM
       }))
       .sort((a, b) => String(a.title).localeCompare(String(b.title)));
     return [{ name: null, rows }];
@@ -1269,11 +1467,27 @@ class TerminalApp extends HandlebarsApplicationMixin(ApplicationV2) {
         isSecret,
         isRevealed,
         isPlaceholder: false,
-        showToggle: isGM && isSecret
+        showToggle: isGM && isSecret,
+        /* GM authoring controls. Index bounds come from the SOURCE
+           array: for the GM no blocks are filtered out, so position in
+           `out` matches position in `blocks`. */
+        canEdit: isGM,
+        isFirst: i === 0,
+        isLast: i === blocks.length - 1
       });
     });
 
-    return { blocks: out, isGM, memberTarget: `${collection}/${id}`, collection, memberId: id };
+    return {
+      blocks: out,
+      isGM,
+      memberTarget: `${collection}/${id}`,
+      collection,
+      memberId: id,
+      /* Screen-level GM controls: header fields, discovery, add block. */
+      canEdit: isGM,
+      discovered: screen.discovered !== false,
+      title: screen.title ?? id
+    };
   }
 
   /* Location directory: list the top-tier regions. */

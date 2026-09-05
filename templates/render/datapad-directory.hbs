@@ -1,21 +1,42 @@
 {{!--
   render/datapad-directory.hbs — list of datapads (collection "datapads").
   Generated from the collection; each row navigates to its detail.
+
+  DISCOVERY: rows whose payload has discovered:false are filtered out in
+  JS for players — they are absent, not dimmed. The GM sees them with a
+  HIDDEN marker and a toggle, so datapads can be built in advance and
+  released when the crew finds them.
 --}}
 {{#if screen.prompt}}
   <p class="term-prompt">&gt; {{screen.prompt}}</p>
 {{/if}}
 
+{{#if datapadDir.isGM}}
+  <div class="dp-dir-bar">
+    <span class="dp-dir-new" data-action="newDatapad">[ + NEW DATAPAD ]</span>
+  </div>
+{{/if}}
+
 {{#each groups}}
   {{#if this.rows.length}}
     <table class="mission-index">
-      <thead><tr><th>Datapad</th><th>Source</th><th>Recovered</th></tr></thead>
+      <thead><tr><th>Datapad</th><th>Source</th><th>Recovered</th>{{#if ../datapadDir.isGM}}<th>Crew access</th>{{/if}}</tr></thead>
       <tbody>
         {{#each this.rows}}
-          <tr class="nav-card" data-action="navigate" data-target="{{this.target}}">
-            <td><span class="roster-name">{{this.title}}</span></td>
+          <tr class="nav-card{{#unless this.discovered}} dp-row-hidden{{/unless}}" data-action="navigate" data-target="{{this.target}}">
+            <td>
+              <span class="roster-name">{{this.title}}</span>
+              {{#unless this.discovered}}<span class="dp-hidden-tag">HIDDEN</span>{{/unless}}
+            </td>
             <td>{{this.source}}</td>
             <td>{{this.date}}</td>
+            {{#if this.canEdit}}
+              <td>
+                <span class="dp-discover-btn" data-action="toggleDiscovered" data-member-id="{{this.memberId}}" data-discovered="{{this.discovered}}">
+                  {{#if this.discovered}}[ hide ]{{else}}[ release ]{{/if}}
+                </span>
+              </td>
+            {{/if}}
           </tr>
         {{/each}}
       </tbody>
