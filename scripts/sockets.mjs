@@ -15,7 +15,7 @@
    Socket channel: module.terminal
    ============================================================= */
 
-import { findScreenJournal, getPayload, findCollectionMember, findCollectionMembers } from "./data.mjs";
+import { findScreenJournal, getPayload, findCollectionMember, findCollectionMembers, savePayload } from "./data.mjs";
 import { terminalWorldTime } from "./gametime.mjs";
 import { getBindings, canPinOrNotice } from "./bindings.mjs";
 
@@ -38,12 +38,28 @@ export async function requestWrite(message) {
   game.socket.emit(CHANNEL, stamped);
 }
 
-/* ---- GM-side: actually perform the write. ----
-   Dispatches by action. Returns nothing; the document update triggers
-   re-render via the hook below. */
-async function performWrite(message, requestingUser) {
-  if (!game.user.isGM) return; // only the GM client writes
+/* ---- GM-side: serialize writes. ----
+   Every action is read-modify-write on a whole payload: read the
+   journal's JSON, change it, write it back. If two requests overlap
+   (two players reacting at once), the second reads BEFORE the first's
+   update has landed and its write silently discards the first change.
+   Chaining every write onto one promise makes them run strictly one at
+   a time, so each read sees the previous write. A failed write is
+   logged and doesn't stall the queue. */
+let writeQueue = Promise.resolve();
 
+function performWrite(message, requestingUser) {
+  if (!game.user.isGM) return; // only the GM client writes
+  const run = writeQueue.then(() => dispatchWrite(message, requestingUser));
+  writeQueue = run.catch(err => {
+    console.error(`terminal | write "${message.action}" failed`, err);
+  });
+  return run;
+}
+
+/* Dispatches by action. Returns nothing; the document update triggers
+   re-render via the hook below. */
+async function dispatchWrite(message, requestingUser) {
   switch (message.action) {
     case "setRequestStatus":
       return setRequestStatus(message, requestingUser);
@@ -129,7 +145,7 @@ async function setRequestStatus(message, requestingUser) {
   else delete req.updatedBy;
   req.updatedAt = new Date().toISOString();
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(`Terminal: status updated to "${status}".`);
 }
 
@@ -208,7 +224,7 @@ async function upsertRequest(message, requestingUser) {
     data.requests.push(req);
   }
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(existing ? "Terminal: request updated." : "Terminal: request posted.");
 }
 
@@ -283,7 +299,7 @@ async function react(message, _requestingUser) {
   if (current === dir) delete post.reactions[memberId];  // same dir -> clear
   else post.reactions[memberId] = dir;                   // set or flip
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
 }
 
 /* Append a comment to a post's replies. message:
@@ -316,7 +332,7 @@ async function addComment(message, requestingUser) {
   if (authorId) comment.authorId = authorId;
   post.replies.push(comment);
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: comment posted.");
 }
 
@@ -338,7 +354,7 @@ async function deletePost(message, requestingUser) {
   }
 
   data.posts = (Array.isArray(data.posts) ? data.posts : []).filter(p => p.id !== postId);
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: post deleted.");
 }
 
@@ -372,7 +388,7 @@ async function deleteComment(message, requestingUser) {
 
   replies.splice(idx, 1);
   post.replies = replies;
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: reply deleted.");
 }
 
@@ -418,7 +434,7 @@ async function addPost(message, requestingUser) {
   }
 
   data.posts.unshift(post);
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: posted to the feed.");
 }
 
@@ -442,7 +458,7 @@ async function editPost(message, requestingUser) {
 
   post.body = body;
   post.edited = true;
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: post updated.");
 }
 
@@ -475,7 +491,7 @@ async function editComment(message, requestingUser) {
 
   reply.body = body;
   reply.edited = true;
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: reply updated.");
 }
 
@@ -494,7 +510,7 @@ async function togglePin(message, requestingUser) {
 
   if (post.pinned) delete post.pinned;
   else post.pinned = true;
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(post.pinned ? "Terminal: post pinned." : "Terminal: post unpinned.");
 }
 
@@ -580,7 +596,7 @@ async function sendMessage(message, requestingUser) {
   }
   if (!trec.read.includes(from)) trec.read.push(from);
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(inReplyTo ? "Terminal: reply sent." : "Terminal: message sent.");
 }
 
@@ -597,7 +613,7 @@ async function readThread(message, _requestingUser) {
   if (!Array.isArray(trec.read)) trec.read = [];
   if (trec.read.includes(memberId)) return; // already read; no write
   trec.read.push(memberId);
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
 }
 
 /* Delete a thread from one member's mailbox (move to Trash). Adds the
@@ -612,7 +628,7 @@ async function deleteThread(message, _requestingUser) {
   const trec = data.threads[threadId] ?? (data.threads[threadId] = { read: [], deleted: [] });
   if (!Array.isArray(trec.deleted)) trec.deleted = [];
   if (!trec.deleted.includes(memberId)) trec.deleted.push(memberId);
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: thread moved to trash.");
 }
 
@@ -627,7 +643,7 @@ async function restoreThread(message, _requestingUser) {
   const trec = data.threads?.[threadId];
   if (!trec || !Array.isArray(trec.deleted)) return;
   trec.deleted = trec.deleted.filter(id => id !== memberId);
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: thread restored.");
 }
 
@@ -648,7 +664,7 @@ async function toggleReveal(message, requestingUser) {
   else revealed.add(blockId);
   data.revealed = [...revealed];
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
 }
 
 /* =============================================================
@@ -778,7 +794,7 @@ async function setDatapadMeta(message, requestingUser) {
     else delete data[k];
   }
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   // Keep the sidebar name in step with the in-terminal title.
   if (journal.name !== message.title) await journal.update({ name: message.title });
   ui.notifications?.info("Terminal: datapad updated.");
@@ -796,7 +812,7 @@ async function setDiscovered(message, requestingUser) {
   const { journal, data } = res;
 
   data.discovered = message.discovered === true;
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(data.discovered
     ? "Terminal: datapad is now visible to the crew."
     : "Terminal: datapad hidden from the crew.");
@@ -832,7 +848,7 @@ async function upsertBlock(message, requestingUser) {
     data.blocks.push({ ...clean, id: `blk-${foundry.utils.randomID(8)}` });
   }
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info(blockId ? "Terminal: block updated." : "Terminal: block added.");
 }
 
@@ -855,7 +871,7 @@ async function moveBlock(message, requestingUser) {
   const [moved] = data.blocks.splice(idx, 1);
   data.blocks.splice(to, 0, moved);
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
 }
 
 /* Remove a block, and its reveal record with it.
@@ -875,7 +891,7 @@ async function deleteBlock(message, requestingUser) {
 
   data.revealed = (Array.isArray(data.revealed) ? data.revealed : []).filter(x => x !== blockId);
 
-  await journal.setFlag(MODULE_ID, "json", data);
+  await savePayload(journal, data);
   ui.notifications?.info("Terminal: block deleted.");
 }
 
@@ -883,7 +899,9 @@ async function deleteBlock(message, requestingUser) {
 Hooks.once("ready", () => {
   // GM services incoming write requests.
   game.socket.on(CHANNEL, (message) => {
-    if (game.user.isGM) performWrite(message, game.users.get(message.userId));
+    // Only the ACTIVE GM services requests; with two GMs logged in, every
+    // GM client would otherwise perform (and duplicate) the same write.
+    if (game.users.activeGM?.isSelf) performWrite(message, game.users.get(message.userId));
   });
 
   // When any terminal-data journal changes, re-render open terminals so

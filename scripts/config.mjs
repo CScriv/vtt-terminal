@@ -18,6 +18,8 @@
    (getHeaderControlsJournalEntrySheet on 13.351).
    ============================================================= */
 
+import { savePayload } from "./data.mjs";
+
 const MODULE_ID = "vtt-terminal";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -130,7 +132,7 @@ class TerminalConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         ui.notifications.error(`Terminal: JSON not saved — ${err.message}`);
         return; // abort the whole save so nothing partial is written
       }
-      await this.journal.setFlag(MODULE_ID, "json", parsed);
+      await savePayload(this.journal, parsed);
     } else {
       // flag storage off: clear any stored flag JSON so the app falls
       // back to the page body.

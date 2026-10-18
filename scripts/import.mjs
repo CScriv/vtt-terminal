@@ -26,7 +26,7 @@
    directory footer and from a header control on collection screens.
    ============================================================= */
 
-import { getPayload } from "./data.mjs";
+import { getPayload, payloadUpdate } from "./data.mjs";
 
 const MODULE_ID = "vtt-terminal";
 
@@ -226,7 +226,10 @@ async function upsertRecord(rec, { folderId = null } = {}) {
   if (recColl) flagData.collection = recColl;
 
   if (existing) {
-    const update = { [`flags.${MODULE_ID}`]: flagData };
+    // json is written as a forced replacement so fields dropped from the
+    // re-imported file actually leave the payload (a merge would keep them).
+    const { json, ...rest } = flagData;
+    const update = { [`flags.${MODULE_ID}`]: rest, ...payloadUpdate(json) };
     // If the existing journal HAD a collection and the new import drops
     // it, explicitly clear the stale flag (object-merge won't remove it).
     if (!recColl && existing.getFlag(MODULE_ID, "collection") != null) {

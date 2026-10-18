@@ -67,6 +67,25 @@ function stripToJson(html) {
   return text.trim();
 }
 
+/* Update fragment that REPLACES flags.<module>.json wholesale.
+   A plain setFlag / update MERGES objects, so a key deleted from the
+   payload (a cleared datapad field, a field dropped from a re-import)
+   would survive in the stored flag. Forced replacement writes exactly
+   the object given.
+     v14+: ForcedReplacement operator ("==" keys are deprecated there)
+     v13 : the "==key" prefix */
+export function payloadUpdate(data) {
+  const Replace = foundry.data?.operators?.ForcedReplacement;
+  return Replace
+    ? { [`flags.${MODULE_ID}.json`]: Replace.create(data) }
+    : { [`flags.${MODULE_ID}.==json`]: data };
+}
+
+/* Write a journal's flag payload, replacing (not merging) it. */
+export function savePayload(journal, data) {
+  return journal.update(payloadUpdate(data));
+}
+
 /* Parse a journal's payload. Returns { ok, data, error }. */
 export function getPayload(journal) {
   const raw = getPayloadText(journal);
