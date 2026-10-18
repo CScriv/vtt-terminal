@@ -15,7 +15,7 @@
    Socket channel: module.terminal
    ============================================================= */
 
-import { findScreenJournal, getPayload, findCollectionMember, findCollectionMembers, savePayload } from "./data.mjs";
+import { findScreenRecord, getPayload, findMemberRecord, savePayload, createRecord, renameRecord } from "./data.mjs";
 import { terminalWorldTime } from "./gametime.mjs";
 import { getBindings, canPinOrNotice } from "./bindings.mjs";
 
@@ -112,13 +112,13 @@ async function dispatchWrite(message, requestingUser) {
    message: { action, screenId, requestId, status, by } */
 async function setRequestStatus(message, requestingUser) {
   const { screenId, requestId, status, by } = message;
-  const journal = findScreenJournal(screenId, { includeDisabled: true });
-  if (!journal) {
+  const record = findScreenRecord(screenId, { includeDisabled: true });
+  if (!record) {
     ui.notifications?.warn(`Terminal: board "${screenId}" not found.`);
     return;
   }
 
-  const parsed = getPayload(journal);
+  const parsed = getPayload(record);
   if (!parsed.ok) {
     ui.notifications?.error(`Terminal: couldn't read board data — ${parsed.error}`);
     return;
@@ -145,7 +145,7 @@ async function setRequestStatus(message, requestingUser) {
   else delete req.updatedBy;
   req.updatedAt = new Date().toISOString();
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(`Terminal: status updated to "${status}".`);
 }
 
@@ -166,13 +166,13 @@ async function upsertRequest(message, requestingUser) {
   }
 
   const { screenId, requestId } = message;
-  const journal = findScreenJournal(screenId, { includeDisabled: true });
-  if (!journal) {
+  const record = findScreenRecord(screenId, { includeDisabled: true });
+  if (!record) {
     ui.notifications?.warn(`Terminal: board "${screenId}" not found.`);
     return;
   }
 
-  const parsed = getPayload(journal);
+  const parsed = getPayload(record);
   if (!parsed.ok) {
     ui.notifications?.error(`Terminal: couldn't read board data — ${parsed.error}`);
     return;
@@ -224,7 +224,7 @@ async function upsertRequest(message, requestingUser) {
     data.requests.push(req);
   }
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(existing ? "Terminal: request updated." : "Terminal: request posted.");
 }
 
@@ -257,15 +257,15 @@ function assignOrDelete(obj, key, value) {
 
 /* Load a feed screen's journal + parsed data + the target post. */
 function loadFeedPost(screenId, postId) {
-  const journal = findScreenJournal(screenId, { includeDisabled: true });
-  if (!journal) return { error: `Feed "${screenId}" not found.` };
-  const parsed = getPayload(journal);
+  const record = findScreenRecord(screenId, { includeDisabled: true });
+  if (!record) return { error: `Feed "${screenId}" not found.` };
+  const parsed = getPayload(record);
   if (!parsed.ok) return { error: `Couldn't read feed — ${parsed.error}` };
   const data = parsed.data;
   const posts = Array.isArray(data.posts) ? data.posts : [];
   const post = posts.find(p => p.id === postId);
   if (!post) return { error: `Post "${postId}" not found.` };
-  return { journal, data, post };
+  return { record, data, post };
 }
 
 /* Toggle a name in a post's likes array (add if absent, remove if
@@ -285,7 +285,7 @@ async function react(message, _requestingUser) {
   if (!memberId) return;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   if (!post.reactions || typeof post.reactions !== "object") {
     post.reactions = {};
@@ -299,7 +299,7 @@ async function react(message, _requestingUser) {
   if (current === dir) delete post.reactions[memberId];  // same dir -> clear
   else post.reactions[memberId] = dir;                   // set or flip
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
 }
 
 /* Append a comment to a post's replies. message:
@@ -320,7 +320,7 @@ async function addComment(message, requestingUser) {
 
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   if (!Array.isArray(post.replies)) post.replies = [];
   const comment = {
@@ -332,7 +332,7 @@ async function addComment(message, requestingUser) {
   if (authorId) comment.authorId = authorId;
   post.replies.push(comment);
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: comment posted.");
 }
 
@@ -343,7 +343,7 @@ async function deletePost(message, requestingUser) {
   const { screenId, postId } = message;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   if (requestingUser && !requestingUser.isGM) {
     const bound = getBindings()[requestingUser.id] ?? null;
@@ -354,7 +354,7 @@ async function deletePost(message, requestingUser) {
   }
 
   data.posts = (Array.isArray(data.posts) ? data.posts : []).filter(p => p.id !== postId);
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: post deleted.");
 }
 
@@ -365,7 +365,7 @@ async function deleteComment(message, requestingUser) {
   const { screenId, postId, replyId, replyIndex } = message;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   const replies = Array.isArray(post.replies) ? post.replies : [];
   // Locate the reply: prefer stable id, fall back to index.
@@ -388,7 +388,7 @@ async function deleteComment(message, requestingUser) {
 
   replies.splice(idx, 1);
   post.replies = replies;
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: reply deleted.");
 }
 
@@ -410,9 +410,9 @@ async function addPost(message, requestingUser) {
     }
   }
 
-  const journal = findScreenJournal(screenId, { includeDisabled: true });
-  if (!journal) { ui.notifications?.warn(`Terminal: feed "${screenId}" not found.`); return; }
-  const parsed = getPayload(journal);
+  const record = findScreenRecord(screenId, { includeDisabled: true });
+  if (!record) { ui.notifications?.warn(`Terminal: feed "${screenId}" not found.`); return; }
+  const parsed = getPayload(record);
   if (!parsed.ok) { ui.notifications?.error(`Terminal: couldn't read feed — ${parsed.error}`); return; }
   const data = parsed.data;
   if (!Array.isArray(data.posts)) data.posts = [];
@@ -434,7 +434,7 @@ async function addPost(message, requestingUser) {
   }
 
   data.posts.unshift(post);
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: posted to the feed.");
 }
 
@@ -446,7 +446,7 @@ async function editPost(message, requestingUser) {
   if (!body) return;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   if (requestingUser && !requestingUser.isGM) {
     const bound = getBindings()[requestingUser.id] ?? null;
@@ -458,7 +458,7 @@ async function editPost(message, requestingUser) {
 
   post.body = body;
   post.edited = true;
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: post updated.");
 }
 
@@ -469,7 +469,7 @@ async function editComment(message, requestingUser) {
   if (!body) return;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   const replies = Array.isArray(post.replies) ? post.replies : [];
   let idx = -1;
@@ -491,7 +491,7 @@ async function editComment(message, requestingUser) {
 
   reply.body = body;
   reply.edited = true;
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: reply updated.");
 }
 
@@ -501,7 +501,7 @@ async function togglePin(message, requestingUser) {
   const { screenId, postId } = message;
   const res = loadFeedPost(screenId, postId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data, post } = res;
+  const { record, data, post } = res;
 
   if (!canPinOrNotice(requestingUser ?? game.user, post.authorId)) {
     ui.notifications?.warn("Terminal: you don't have permission to pin posts.");
@@ -510,7 +510,7 @@ async function togglePin(message, requestingUser) {
 
   if (post.pinned) delete post.pinned;
   else post.pinned = true;
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(post.pinned ? "Terminal: post pinned." : "Terminal: post unpinned.");
 }
 
@@ -518,11 +518,11 @@ async function togglePin(message, requestingUser) {
 
 /* Load an inbox screen's journal + parsed data. */
 function loadInbox(screenId) {
-  const journal = findScreenJournal(screenId, { includeDisabled: true });
-  if (!journal) return { error: `Inbox "${screenId}" not found.` };
-  const parsed = getPayload(journal);
+  const record = findScreenRecord(screenId, { includeDisabled: true });
+  if (!record) return { error: `Inbox "${screenId}" not found.` };
+  const parsed = getPayload(record);
   if (!parsed.ok) return { error: `Couldn't read inbox — ${parsed.error}` };
-  return { journal, data: parsed.data };
+  return { record, data: parsed.data };
 }
 
 /* Mark a message read for a member (append member id to read[]).
@@ -557,7 +557,7 @@ async function sendMessage(message, requestingUser) {
 
   const res = loadInbox(screenId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   if (!Array.isArray(data.messages)) data.messages = [];
   if (!data.threads || typeof data.threads !== "object") data.threads = {};
 
@@ -596,7 +596,7 @@ async function sendMessage(message, requestingUser) {
   }
   if (!trec.read.includes(from)) trec.read.push(from);
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(inReplyTo ? "Terminal: reply sent." : "Terminal: message sent.");
 }
 
@@ -607,13 +607,13 @@ async function readThread(message, _requestingUser) {
   if (!threadId || !memberId) return;
   const res = loadInbox(screenId);
   if (res.error) return; // silent: read-marking shouldn't nag
-  const { journal, data } = res;
+  const { record, data } = res;
   if (!data.threads || typeof data.threads !== "object") data.threads = {};
   const trec = data.threads[threadId] ?? (data.threads[threadId] = { read: [] });
   if (!Array.isArray(trec.read)) trec.read = [];
   if (trec.read.includes(memberId)) return; // already read; no write
   trec.read.push(memberId);
-  await savePayload(journal, data);
+  await savePayload(record, data);
 }
 
 /* Delete a thread from one member's mailbox (move to Trash). Adds the
@@ -623,12 +623,12 @@ async function deleteThread(message, _requestingUser) {
   if (!threadId || !memberId) return;
   const res = loadInbox(screenId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   if (!data.threads || typeof data.threads !== "object") data.threads = {};
   const trec = data.threads[threadId] ?? (data.threads[threadId] = { read: [], deleted: [] });
   if (!Array.isArray(trec.deleted)) trec.deleted = [];
   if (!trec.deleted.includes(memberId)) trec.deleted.push(memberId);
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: thread moved to trash.");
 }
 
@@ -639,11 +639,11 @@ async function restoreThread(message, _requestingUser) {
   if (!threadId || !memberId) return;
   const res = loadInbox(screenId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   const trec = data.threads?.[threadId];
   if (!trec || !Array.isArray(trec.deleted)) return;
   trec.deleted = trec.deleted.filter(id => id !== memberId);
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: thread restored.");
 }
 
@@ -653,9 +653,9 @@ async function restoreThread(message, _requestingUser) {
 async function toggleReveal(message, requestingUser) {
   if (!(requestingUser?.isGM)) return; // reveal is a GM action
   const { collection, memberId, blockId } = message;
-  const journal = findCollectionMember(collection, memberId, { includeDisabled: true });
-  if (!journal) { ui.notifications?.warn(`Terminal: datapad "${memberId}" not found.`); return; }
-  const parsed = getPayload(journal);
+  const record = findMemberRecord(collection, memberId, { includeDisabled: true });
+  if (!record) { ui.notifications?.warn(`Terminal: datapad "${memberId}" not found.`); return; }
+  const parsed = getPayload(record);
   if (!parsed.ok) { ui.notifications?.error(`Terminal: couldn't read datapad — ${parsed.error}`); return; }
   const data = parsed.data;
 
@@ -664,7 +664,7 @@ async function toggleReveal(message, requestingUser) {
   else revealed.add(blockId);
   data.revealed = [...revealed];
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
 }
 
 /* =============================================================
@@ -680,11 +680,11 @@ const DATAPAD_COLLECTION = "datapads";
 
 /* Resolve a datapad journal + parsed payload. */
 function loadDatapad(memberId) {
-  const journal = findCollectionMember(DATAPAD_COLLECTION, memberId, { includeDisabled: true });
-  if (!journal) return { error: `Datapad "${memberId}" not found.` };
-  const parsed = getPayload(journal);
+  const record = findMemberRecord(DATAPAD_COLLECTION, memberId, { includeDisabled: true });
+  if (!record) return { error: `Datapad "${memberId}" not found.` };
+  const parsed = getPayload(record);
   if (!parsed.ok) return { error: `Couldn't read datapad — ${parsed.error}` };
-  return { journal, data: parsed.data };
+  return { record, data: parsed.data };
 }
 
 /* Give every block a stable id, BEFORE any write that could reorder
@@ -730,15 +730,11 @@ async function createDatapad(message, requestingUser) {
   const { id } = message;
   if (!id) return;
 
-  const clash = findCollectionMember(DATAPAD_COLLECTION, id, { includeDisabled: true });
+  const clash = findMemberRecord(DATAPAD_COLLECTION, id, { includeDisabled: true });
   if (clash) {
     ui.notifications?.warn(`Terminal: a datapad with the id "${id}" already exists.`);
     return;
   }
-
-  // File alongside the existing datapads.
-  const siblings = findCollectionMembers(DATAPAD_COLLECTION, { includeDisabled: true });
-  const folder = siblings.find(j => j.folder)?.folder ?? null;
 
   const payload = pruneNulls({
     render: "datapad",
@@ -753,27 +749,16 @@ async function createDatapad(message, requestingUser) {
   payload.revealed = [];
   payload.blocks = [];
 
-  const journal = await JournalEntry.create({
+  // Files itself alongside the existing datapads (createRecord's default).
+  const record = await createRecord({
+    collection: DATAPAD_COLLECTION,
+    id,
     name: message.title || id,
-    folder: folder?.id ?? null,
-    // A note page so opening the journal directly doesn't look empty
-    // and explains where the content actually lives.
-    pages: [{
-      name: "About",
-      type: "text",
-      text: { content: "<p>Content for this datapad is stored in the Terminal module's flag data. Edit it from the terminal, or via the journal header's <strong>Terminal Data</strong> button.</p>" }
-    }],
-    flags: {
-      [MODULE_ID]: {
-        enabled: true,
-        collection: DATAPAD_COLLECTION,
-        id,
-        json: payload
-      }
-    }
+    payload,
+    note: "<p>Content for this datapad is stored in the Terminal module's flag data. Edit it from the terminal, or via the journal header's <strong>Terminal Data</strong> button.</p>"
   });
 
-  if (!journal) {
+  if (!record) {
     ui.notifications?.error("Terminal: the datapad journal couldn't be created.");
     return;
   }
@@ -786,7 +771,7 @@ async function setDatapadMeta(message, requestingUser) {
   if (!(requestingUser?.isGM)) return;
   const res = loadDatapad(message.memberId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
 
   data.title = message.title;
   for (const k of ["source", "date", "tag", "prompt"]) {
@@ -794,9 +779,9 @@ async function setDatapadMeta(message, requestingUser) {
     else delete data[k];
   }
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   // Keep the sidebar name in step with the in-terminal title.
-  if (journal.name !== message.title) await journal.update({ name: message.title });
+  await renameRecord(record, message.title);
   ui.notifications?.info("Terminal: datapad updated.");
 }
 
@@ -809,10 +794,10 @@ async function setDiscovered(message, requestingUser) {
   if (!(requestingUser?.isGM)) return;
   const res = loadDatapad(message.memberId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
 
   data.discovered = message.discovered === true;
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(data.discovered
     ? "Terminal: datapad is now visible to the crew."
     : "Terminal: datapad hidden from the crew.");
@@ -827,7 +812,7 @@ async function upsertBlock(message, requestingUser) {
 
   const res = loadDatapad(memberId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   normalizeBlockIds(data);
 
   const clean = pruneNulls({ ...block });
@@ -848,7 +833,7 @@ async function upsertBlock(message, requestingUser) {
     data.blocks.push({ ...clean, id: `blk-${foundry.utils.randomID(8)}` });
   }
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info(blockId ? "Terminal: block updated." : "Terminal: block added.");
 }
 
@@ -861,7 +846,7 @@ async function moveBlock(message, requestingUser) {
 
   const res = loadDatapad(memberId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   normalizeBlockIds(data);
 
   const idx = data.blocks.findIndex(b => b.id === blockId);
@@ -871,7 +856,7 @@ async function moveBlock(message, requestingUser) {
   const [moved] = data.blocks.splice(idx, 1);
   data.blocks.splice(to, 0, moved);
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
 }
 
 /* Remove a block, and its reveal record with it.
@@ -882,7 +867,7 @@ async function deleteBlock(message, requestingUser) {
 
   const res = loadDatapad(memberId);
   if (res.error) { ui.notifications?.warn(`Terminal: ${res.error}`); return; }
-  const { journal, data } = res;
+  const { record, data } = res;
   normalizeBlockIds(data);
 
   const before = data.blocks.length;
@@ -891,7 +876,7 @@ async function deleteBlock(message, requestingUser) {
 
   data.revealed = (Array.isArray(data.revealed) ? data.revealed : []).filter(x => x !== blockId);
 
-  await savePayload(journal, data);
+  await savePayload(record, data);
   ui.notifications?.info("Terminal: block deleted.");
 }
 
@@ -904,16 +889,23 @@ Hooks.once("ready", () => {
     if (game.users.activeGM?.isSelf) performWrite(message, game.users.get(message.userId));
   });
 
-  // When any terminal-data journal changes, re-render open terminals so
-  // everyone sees writes live. We don't rely on the change-diff shape
-  // (nested setFlag diffs vary); instead we re-render if the updated
-  // journal carries our flag at all.
-  Hooks.on("updateJournalEntry", (doc) => {
-    const isTerminalDoc = doc.getFlag(MODULE_ID, "id") !== undefined
-      || doc.getFlag(MODULE_ID, "json") !== undefined;
+  // When any terminal-data journal is created, changed or deleted,
+  // re-render open terminals so everyone sees it live. We don't rely on
+  // the change-diff shape (nested setFlag diffs vary); instead we
+  // re-render if the journal carries our flag at all. Page edits count
+  // too: body-authored screens keep their JSON in the first page.
+  const rerender = (doc) => {
+    const isTerminalDoc = doc?.getFlag(MODULE_ID, "id") !== undefined
+      || doc?.getFlag(MODULE_ID, "json") !== undefined;
     if (!isTerminalDoc) return;
     if (isReadOnlyWriteWindow()) return; // skip read-state re-render
     const app = game.modules.get(MODULE_ID)?.api?.app;
     if (app?.rendered) app.render(false);
-  });
+  };
+  for (const hook of ["createJournalEntry", "updateJournalEntry", "deleteJournalEntry"]) {
+    Hooks.on(hook, rerender);
+  }
+  for (const hook of ["createJournalEntryPage", "updateJournalEntryPage", "deleteJournalEntryPage"]) {
+    Hooks.on(hook, (page) => rerender(page.parent));
+  }
 });

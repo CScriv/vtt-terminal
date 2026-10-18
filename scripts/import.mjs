@@ -26,7 +26,7 @@
    directory footer and from a header control on collection screens.
    ============================================================= */
 
-import { getPayload, payloadUpdate } from "./data.mjs";
+import { getPayload, findRecordExact, listCollections, createRecord, updateRecord } from "./data.mjs";
 
 const MODULE_ID = "vtt-terminal";
 
@@ -198,51 +198,29 @@ function parseBatch(raw, defaultCollection, { fallbackId = "", fallbackCollectio
 }
 
 /* -------------------------------------------------------------
-   Upsert one record into a JournalEntry. Existing member (matched by
-   collection + id) is updated in place; otherwise a new journal is
-   created. Returns { action: "created"|"updated", name }.
+   Upsert one import record. An existing record (matched by collection
+   + id, blank collection = standalone screen) is overwritten in place,
+   payload replaced rather than merged; otherwise a new one is created.
+   Returns { action: "created"|"updated", name }.
    ------------------------------------------------------------- */
 async function upsertRecord(rec, { folderId = null } = {}) {
-  // A standalone screen has no collection. config.mjs stores that by
-  // UNSETTING the flag (so getFlag returns undefined), not as "". Match
-  // and write the same way: treat undefined/"" as the same "no collection".
   const recColl = rec.collection || null;   // "" -> null
-  const sameColl = (j) => (j.getFlag(MODULE_ID, "collection") || null) === recColl;
-
-  const existing = game.journal.find(j =>
-    sameColl(j) && j.getFlag(MODULE_ID, "id") === rec.id
-  );
-
-  // A friendly journal name: the payload's name/title, else the id.
-  const displayName = rec.data?.name ?? rec.data?.title ?? rec.id;
-
-  // Build the flag object. Omit collection entirely when blank so the
-  // stored shape matches a screen configured by hand via Terminal Data.
-  const flagData = {
-    enabled: rec.enabled,
-    id: rec.id,
-    json: rec.data
-  };
-  if (recColl) flagData.collection = recColl;
+  const existing = findRecordExact(recColl, rec.id);
 
   if (existing) {
-    // json is written as a forced replacement so fields dropped from the
-    // re-imported file actually leave the payload (a merge would keep them).
-    const { json, ...rest } = flagData;
-    const update = { [`flags.${MODULE_ID}`]: rest, ...payloadUpdate(json) };
-    // If the existing journal HAD a collection and the new import drops
-    // it, explicitly clear the stale flag (object-merge won't remove it).
-    if (!recColl && existing.getFlag(MODULE_ID, "collection") != null) {
-      update[`flags.${MODULE_ID}.-=collection`] = null;
-    }
-    await existing.update(update);
+    await updateRecord(existing, { enabled: rec.enabled, collection: recColl, payload: rec.data });
     return { action: "updated", name: existing.name };
   }
 
-  await JournalEntry.create({
+  // A friendly journal name: the payload's name/title, else the id.
+  const displayName = rec.data?.name ?? rec.data?.title ?? rec.id;
+  await createRecord({
+    collection: recColl,
+    id: rec.id,
+    enabled: rec.enabled,
     name: displayName,
-    ...(folderId ? { folder: folderId } : {}),
-    flags: { [MODULE_ID]: flagData }
+    payload: rec.data,
+    folder: folderId
   });
   return { action: "created", name: displayName };
 }
@@ -302,11 +280,7 @@ class TerminalImport extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext() {
     // Offer existing collections as datalist hints so ids land in the
     // right set without guesswork.
-    const collections = [...new Set(
-      game.journal
-        .map(j => j.getFlag(MODULE_ID, "collection"))
-        .filter(c => typeof c === "string" && c)
-    )].sort();
+    const collections = listCollections();
     return {
       presetCollection: this.presetCollection,
       collections
@@ -450,13 +424,7 @@ class TerminalImport extends HandlebarsApplicationMixin(ApplicationV2) {
     // Pre-flight: how many are new vs. overwrites? Warn before clobbering.
     // Match collection the same normalized way as upsert (blank == none).
     const label = (r) => r.collection ? `${r.collection}/${r.id}` : `${r.id} (screen)`;
-    const overwrites = records.filter(r => {
-      const rc = r.collection || null;
-      return game.journal.some(j =>
-        (j.getFlag(MODULE_ID, "collection") || null) === rc &&
-        j.getFlag(MODULE_ID, "id") === r.id
-      );
-    });
+    const overwrites = records.filter(r => findRecordExact(r.collection, r.id));
 
     let proceed = true;
     if (overwrites.length) {
