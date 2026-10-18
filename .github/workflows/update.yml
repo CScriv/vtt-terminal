@@ -1,9 +1,14 @@
 name: Release Module
 
+# Releases are driven by the "version" field in module.json.
+# Bump it, commit, push to main -> a release vX.Y.Z is created automatically.
+# Pushing a vX.Y.Z tag by hand, or running this workflow manually, also works.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths: [module.json]
+    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,41 +19,62 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Substitute manifest fields
-        uses: microsoft/variable-substitution@v1
         with:
-          files: "module.json"
-        env:
-          version: ${{ steps.version.outputs.VERSION }}
-          url: https://github.com/${{ github.repository }}
-          manifest: https://github.com/${{ github.repository }}/releases/latest/download/module.json
-          download: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.zip
+          fetch-depth: 0
 
-      - name: Create zip archive
+      - name: Determine version
+        id: version
         run: |
-          zip -r module.zip \
-            module.json \
-            scripts/ \
-            styles/ \
-            lang/ \
-            templates/ \
-            packs/ \
-            assets/ \
-            LICENSE \
-            -x "*.git*" 2>/dev/null || \
-          zip -r module.zip module.json scripts/ styles/
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(jq -r .version module.json)"
+          fi
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]] && git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists; bump the version in module.json to release. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write release manifest
+        if: steps.version.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          jq --arg v "$VERSION" \
+             --arg url "https://github.com/$REPO" \
+             --arg manifest "https://github.com/$REPO/releases/latest/download/module.json" \
+             --arg download "https://github.com/$REPO/releases/download/$TAG/module.zip" \
+             '.version=$v | .url=$url | .manifest=$manifest | .download=$download' \
+             module.json > module.json.tmp
+          mv module.json.tmp module.json
+          cat module.json
+
+      - name: Build module.zip
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          rm -f module.zip
+          # Only what Foundry needs at runtime. Optional folders are added if they exist.
+          files=(module.json scripts styles templates)
+          for f in lang packs assets themes LICENSE README.md; do
+            [[ -e "$f" ]] && files+=("$f")
+          done
+          zip -r module.zip "${files[@]}"
+          unzip -l module.zip | tail -1
 
       - name: Create release
+        if: steps.version.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
           files: |
             module.json
             module.zip
